@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "leaflet/dist/leaflet.css";
+
+html,
+body {
+  height: 100%;
+}
+
+.observation-marker {
+  transition: transform 0.15s ease;
+}
+.observation-marker:hover {
+  transform: scale(1.15);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+}
