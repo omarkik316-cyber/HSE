@@ -11,7 +11,7 @@ export interface Filters {
   zone: string; // "all" or a specific zone_name
 }
 
-export const ALL_STATUSES: ObservationStatus[] = ["open", "in_progress", "closed"];
+export const ALL_STATUSES: ObservationStatus[] = ["open", "in_progress", "pending_review", "closed"];
 export const ALL_PRIORITIES: ObservationPriority[] = ["low", "medium", "high", "critical"];
 
 export function defaultFilters(): Filters {
@@ -38,6 +38,10 @@ const STATUS_CHIP_STYLE: Record<ObservationStatus, { active: string; inactive: s
   in_progress: {
     active: "bg-amber-500 text-white border-amber-500",
     inactive: "bg-white text-amber-600 border-amber-300",
+  },
+  pending_review: {
+    active: "bg-cyan-600 text-white border-cyan-600",
+    inactive: "bg-white text-cyan-600 border-cyan-300",
   },
   closed: {
     active: "bg-green-600 text-white border-green-600",

@@ -8,7 +8,7 @@ create extension if not exists "uuid-ossp";
 
 -- 2. Roles enum
 create type user_role as enum ('safety_officer', 'consultant', 'contractor', 'admin');
-create type observation_status as enum ('open', 'in_progress', 'closed');
+create type observation_status as enum ('open', 'in_progress', 'pending_review', 'closed');
 create type observation_priority as enum ('low', 'medium', 'high', 'critical');
 
 -- 3. Profiles table (extends Supabase auth.users)
@@ -35,6 +35,7 @@ create table zones (
 -- 5. Observations table (the core entity)
 create table observations (
   id uuid primary key default uuid_generate_v4(),
+  ticket_no serial,                    -- human-friendly sequential number (#1, #2...)
   title text not null,
   description text,
   category text not null,              -- e.g. "PPE", "Fall Protection", "Housekeeping", "Electrical"

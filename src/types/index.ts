@@ -1,5 +1,5 @@
 export type UserRole = "safety_officer" | "consultant" | "contractor" | "admin";
-export type ObservationStatus = "open" | "in_progress" | "closed";
+export type ObservationStatus = "open" | "in_progress" | "pending_review" | "closed";
 export type ObservationPriority = "low" | "medium" | "high" | "critical";
 
 export interface Profile {
@@ -32,6 +32,7 @@ export interface ObservationComment {
 
 export interface Observation {
   id: string;
+  ticket_no: number;
   title: string;
   description: string | null;
   category: string;
@@ -75,8 +76,30 @@ export const PRIORITY_COLORS: Record<ObservationPriority, string> = {
 export const STATUS_LABELS: Record<ObservationStatus, string> = {
   open: "Open",
   in_progress: "In Progress",
+  pending_review: "Pending Review",
   closed: "Closed",
 };
+
+// A distinct color per zone/phase prefix (2, 3, 4, 5, 6, 7, 8...), parsed
+// from the zone name (e.g. "3I", "Phase 4 Boundary", "2A-B"). Falls back to
+// slate for anything that doesn't match a known phase number.
+export const ZONE_PHASE_COLORS: Record<string, string> = {
+  "2": "#3b82f6", // blue
+  "3": "#10b981", // green
+  "4": "#f59e0b", // amber
+  "5": "#8b5cf6", // purple
+  "6": "#ec4899", // pink
+  "7": "#14b8a6", // teal
+  "8": "#ef4444", // red
+};
+export const DEFAULT_ZONE_COLOR = "#64748b"; // slate, for unrecognized zones
+
+export function getZoneColor(zoneName: string | null | undefined): string {
+  if (!zoneName) return DEFAULT_ZONE_COLOR;
+  const match = zoneName.match(/\d/);
+  if (match && ZONE_PHASE_COLORS[match[0]]) return ZONE_PHASE_COLORS[match[0]];
+  return DEFAULT_ZONE_COLOR;
+}
 
 // Display labels for roles — the underlying value stored in the database
 // is still "contractor" (renaming the enum would require a migration),

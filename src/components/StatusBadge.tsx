@@ -4,6 +4,7 @@ import { STATUS_LABELS } from "@/types";
 const STATUS_STYLES: Record<ObservationStatus, string> = {
   open: "bg-red-100 text-red-700 border-red-300",
   in_progress: "bg-amber-100 text-amber-700 border-amber-300",
+  pending_review: "bg-cyan-100 text-cyan-700 border-cyan-300",
   closed: "bg-green-100 text-green-700 border-green-300",
 };
 

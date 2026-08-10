@@ -22,12 +22,21 @@ function toDateTimeLocal(iso: string | null): string {
   return new Date(d.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  open: "Reopened",
+  in_progress: "Marked In Progress",
+  pending_review: "Submitted for Review",
+  closed: "Approved & Closed",
+};
+
 export default function ObservationDetail({ observation, userId, userRole, onClose, onUpdated }: Props) {
   const [comments, setComments] = useState<ObservationComment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Editable field state, seeded from the current observation
   const [editTitle, setEditTitle] = useState(observation.title);
@@ -37,22 +46,32 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
   const [editContractor, setEditContractor] = useState(observation.assigned_contractor ?? "");
   const [editDueDate, setEditDueDate] = useState(toDateTimeLocal(observation.due_date));
 
+  async function reloadComments() {
+    const { data } = await supabase
+      .from("observation_comments")
+      .select("*, profiles(full_name, role)")
+      .eq("observation_id", observation.id)
+      .order("created_at", { ascending: true });
+    setComments(data ?? []);
+  }
+
   useEffect(() => {
-    async function loadComments() {
-      const { data } = await supabase
-        .from("observation_comments")
-        .select("*, profiles(full_name, role)")
-        .eq("observation_id", observation.id)
-        .order("created_at", { ascending: true });
-      setComments(data ?? []);
-    }
-    loadComments();
+    reloadComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observation.id]);
 
-  const canUpdateStatus = userRole === "safety_officer" || userRole === "admin" || userRole === "contractor";
+  // Contractors submit fixes; safety officers/consultants/admins raise
+  // observations and move them in_progress. Only admins approve or reject
+  // a submitted fix — that's the review gate the person asked for.
+  const canWorkOn = userRole === "safety_officer" || userRole === "admin" || userRole === "contractor";
   const canEditDetails = userRole === "safety_officer" || userRole === "admin";
+  const canReview = userRole === "admin";
 
-  async function updateStatus(newStatus: ObservationStatus) {
+  async function changeStatus(
+    newStatus: ObservationStatus,
+    actionComment: string,
+    extraPayload: Record<string, unknown> = {}
+  ) {
     setBusy(true);
     try {
       if (afterPhoto) {
@@ -74,11 +93,7 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
         }
       }
 
-      const updatePayload: Record<string, unknown> = { status: newStatus };
-      if (newStatus === "closed") {
-        updatePayload.closed_at = new Date().toISOString();
-        updatePayload.closed_by = userId;
-      }
+      const updatePayload: Record<string, unknown> = { status: newStatus, ...extraPayload };
 
       const { error } = await supabase.from("observations").update(updatePayload).eq("id", observation.id);
       if (error) {
@@ -89,7 +104,7 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
       await supabase.from("observation_comments").insert({
         observation_id: observation.id,
         author_id: userId,
-        comment: `Status changed to ${newStatus.replace("_", " ")}`,
+        comment: actionComment,
         status_change_to: newStatus,
       });
 
@@ -97,6 +112,27 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
     } finally {
       setBusy(false);
     }
+  }
+
+  function submitForReview() {
+    changeStatus("pending_review", ACTION_LABELS.pending_review);
+  }
+
+  function approveAndClose() {
+    changeStatus("closed", ACTION_LABELS.closed, {
+      closed_at: new Date().toISOString(),
+      closed_by: userId,
+    });
+  }
+
+  async function confirmReject() {
+    if (!rejectReason.trim()) {
+      alert("Please add a reason so the contractor knows what to fix.");
+      return;
+    }
+    await changeStatus("in_progress", `Rejected — needs rework: ${rejectReason.trim()}`);
+    setRejecting(false);
+    setRejectReason("");
   }
 
   async function saveEdits() {
@@ -142,12 +178,7 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
         comment: newComment.trim(),
       });
       setNewComment("");
-      const { data } = await supabase
-        .from("observation_comments")
-        .select("*, profiles(full_name, role)")
-        .eq("observation_id", observation.id)
-        .order("created_at", { ascending: true });
-      setComments(data ?? []);
+      await reloadComments();
     } finally {
       setBusy(false);
     }
@@ -274,7 +305,9 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
     <div className="p-5 space-y-4 overflow-y-auto h-full">
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-semibold">{observation.title}</h3>
+          <h3 className="text-lg font-semibold">
+            <span className="text-slate-400 font-normal">#{observation.ticket_no}</span> {observation.title}
+          </h3>
           <p className="text-sm text-gray-500">{observation.zone_name ?? "Unknown zone"}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -344,48 +377,143 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
         </div>
       )}
 
-      {canUpdateStatus && observation.status !== "closed" && (
+      {/* Contractor / safety officer / admin workflow: open -> in progress -> submit for review */}
+      {canWorkOn && (observation.status === "open" || observation.status === "in_progress") && (
         <div className="border-t pt-3 space-y-2">
           <p className="text-sm font-medium">Update status</p>
           {observation.status === "open" && (
             <button
               disabled={busy}
-              onClick={() => updateStatus("in_progress")}
+              onClick={() => changeStatus("in_progress", ACTION_LABELS.in_progress)}
               className="w-full bg-amber-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
             >
               Mark In Progress
             </button>
           )}
-          <div>
-            <label htmlFor="after-photo" className="block text-xs text-gray-500 mb-1">Correction photo (optional)</label>
-            <input
-              id="after-photo"
-              name="after_photo"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => setAfterPhoto(e.target.files?.[0] ?? null)}
-              className="w-full text-sm mb-2"
-            />
-            <button
-              disabled={busy}
-              onClick={() => updateStatus("closed")}
-              className="w-full bg-green-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-            >
-              Mark Closed
-            </button>
-          </div>
+          {observation.status === "in_progress" && (
+            <div>
+              <label htmlFor="after-photo" className="block text-xs text-gray-500 mb-1">
+                Correction photo
+              </label>
+              <input
+                id="after-photo"
+                name="after_photo"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => setAfterPhoto(e.target.files?.[0] ?? null)}
+                className="w-full text-sm mb-2"
+              />
+              <button
+                disabled={busy}
+                onClick={submitForReview}
+                className="w-full bg-cyan-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+              >
+                Submit for Review
+              </button>
+              <p className="text-[11px] text-gray-400 mt-1">
+                An admin will review the fix and either approve &amp; close it, or send it back for rework.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Admin review gate: approve or reject a submitted fix */}
+      {canReview && observation.status === "pending_review" && (
+        <div className="border-t pt-3 space-y-2">
+          <p className="text-sm font-medium text-cyan-700">Review this fix</p>
+          {!rejecting ? (
+            <div className="flex gap-2">
+              <button
+                disabled={busy}
+                onClick={approveAndClose}
+                className="flex-1 bg-green-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+              >
+                ✓ Approve &amp; Close
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => setRejecting(true)}
+                className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+              >
+                ✕ Reject
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label htmlFor="reject-reason" className="block text-xs text-gray-500">
+                Why is this being sent back? (the contractor will see this)
+              </label>
+              <textarea
+                id="reject-reason"
+                name="reject_reason"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={2}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+                placeholder="e.g. Photo doesn't show the harness properly attached"
+              />
+              <div className="flex gap-2">
+                <button
+                  disabled={busy}
+                  onClick={confirmReject}
+                  className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+                >
+                  Confirm Rejection
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRejecting(false);
+                    setRejectReason("");
+                  }}
+                  className="px-4 py-2 text-sm font-medium border rounded-lg"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {observation.status === "pending_review" && !canReview && (
+        <div className="border-t pt-3">
+          <p className="text-xs text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-2">
+            Waiting on admin review.
+          </p>
         </div>
       )}
 
       <div className="border-t pt-3">
-        <p className="text-sm font-medium mb-2">Activity log</p>
-        <div className="space-y-2 max-h-40 overflow-y-auto">
-          {comments.map((c) => (
-            <div key={c.id} className="text-xs bg-slate-50 rounded-lg p-2">
-              <span className="font-medium">{c.profiles?.full_name ?? "User"}</span>: {c.comment}
-            </div>
-          ))}
+        <p className="text-sm font-medium mb-2">Activity Log</p>
+        <div className="space-y-2 max-h-48 overflow-y-auto">
+          {comments.map((c) => {
+            const isAction = !!c.status_change_to;
+            return (
+              <div
+                key={c.id}
+                className={
+                  isAction
+                    ? "text-xs bg-slate-50 border-l-2 border-slate-400 rounded-r-lg p-2"
+                    : "text-xs bg-slate-50 rounded-lg p-2"
+                }
+              >
+                {isAction && (
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-wide text-slate-500 mr-1.5">
+                    Action:
+                  </span>
+                )}
+                <span className="font-medium">{c.profiles?.full_name ?? "User"}</span>
+                {" — "}
+                {c.comment}
+              </div>
+            );
+          })}
+          {comments.length === 0 && (
+            <p className="text-xs text-gray-400">No activity yet.</p>
+          )}
         </div>
         <div className="flex gap-2 mt-2">
           <label htmlFor="new-comment" className="sr-only">Add a note</label>

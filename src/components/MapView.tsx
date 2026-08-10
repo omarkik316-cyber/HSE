@@ -5,7 +5,7 @@ import L from "leaflet";
 import type { FeatureCollection, Polygon } from "geojson";
 import { loadZones, detectZone } from "@/lib/zoneDetect";
 import type { Observation, ObservationPriority } from "@/types";
-import { PRIORITY_COLORS } from "@/types";
+import { PRIORITY_COLORS, getZoneColor } from "@/types";
 
 interface MapViewProps {
   observations: Observation[];
@@ -99,12 +99,18 @@ export default function MapView({ observations, onMapClick, onPinClick }: MapVie
         // which is exactly why tapping on a building stopped opening the
         // new-observation form.
         interactive: false,
-        style: {
-          color: "#ffdd00",
-          weight: 2.5,
-          fillColor: "#ffdd00",
-          fillOpacity: 0.04,
-          opacity: 0.9,
+        // Each zone/phase gets its own color (derived from the phase
+        // number in its name — "3I", "Phase 4 Boundary", "2A-B", etc.)
+        // instead of one flat yellow for everything.
+        style: (feature) => {
+          const color = getZoneColor(feature?.properties?.name);
+          return {
+            color,
+            weight: 2.5,
+            fillColor: color,
+            fillOpacity: 0.08,
+            opacity: 0.9,
+          };
         },
       }).addTo(map);
 
@@ -155,22 +161,31 @@ export default function MapView({ observations, onMapClick, onPinClick }: MapVie
 
     observations.forEach((obs) => {
       const color =
-        obs.status === "closed" ? "#6b7280" : PRIORITY_COLORS[obs.priority as ObservationPriority];
+        obs.status === "closed"
+          ? "#6b7280"
+          : obs.status === "pending_review"
+          ? "#0891b2" // cyan — visually distinct "awaiting review" state
+          : PRIORITY_COLORS[obs.priority as ObservationPriority];
       const opacity = obs.status === "closed" ? 0.6 : 1;
       const isConsultantReport = obs.profiles?.role === "consultant";
 
       // Consultant-raised observations get a distinct look: a blue ring
       // plus a small "C" badge, so they stand out from Safety Officer
       // reports at a glance (consultant items must close same-day).
+      // The ticket number is always shown so a specific observation can be
+      // found and referenced at a glance instead of having to open each pin.
       const icon = L.divIcon({
         className: "observation-marker",
-        html: `<div style="position:relative;width:22px;height:22px;">
+        html: `<div style="position:relative;width:26px;height:26px;">
           <div style="
-            width:22px;height:22px;border-radius:50%;
+            width:26px;height:26px;border-radius:50%;
             border:${isConsultantReport ? "3px solid #2563eb" : "2px solid white"};
             box-shadow:0 1px 4px rgba(0,0,0,0.4);
             background-color:${color};opacity:${opacity};cursor:pointer;
-          "></div>
+            display:flex;align-items:center;justify-content:center;
+            font-size:10px;font-weight:800;color:white;
+            text-shadow:0 1px 1px rgba(0,0,0,0.5);
+          ">#${obs.ticket_no}</div>
           ${
             isConsultantReport
               ? `<div style="
@@ -184,8 +199,8 @@ export default function MapView({ observations, onMapClick, onPinClick }: MapVie
               : ""
           }
         </div>`,
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
       });
 
       const marker = L.marker([obs.latitude, obs.longitude], { icon })

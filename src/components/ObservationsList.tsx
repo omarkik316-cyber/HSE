@@ -74,7 +74,9 @@ export default function ObservationsList({ observations, onSelect }: Observation
                 className="w-full text-left px-4 py-3 hover:bg-slate-50 transition flex flex-col gap-1.5"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="font-medium text-sm text-slate-800">{obs.title}</span>
+                  <span className="font-medium text-sm text-slate-800">
+                    <span className="text-slate-400 font-normal">#{obs.ticket_no}</span> {obs.title}
+                  </span>
                   <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">
                     {formatDistanceToNow(new Date(obs.created_at))} ago
                   </span>
