@@ -54,11 +54,6 @@ Deno.serve(async (req: Request) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // OneSignal's newer REST API keys (the "os_v2_app_..." format
-        // mentioned above) authenticate with the "Key" scheme, NOT "Basic".
-        // Using "Basic" made every request fail with 401 Unauthorized,
-        // which is why pushes sent from the OneSignal dashboard worked
-        // fine but pushes sent from this function never arrived.
         Authorization: `Key ${restApiKey}`,
       },
       body: JSON.stringify({
