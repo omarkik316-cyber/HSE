@@ -10,6 +10,7 @@ import ObservationsList from "@/components/ObservationsList";
 import StatsBar from "@/components/StatsBar";
 import FilterBar, { defaultFilters, applyFilters, type Filters } from "@/components/FilterBar";
 import BottomNav from "@/components/BottomNav";
+import NotificationBell from "@/components/NotificationBell";
 import type { Observation, Profile } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 
@@ -90,7 +91,9 @@ export default function DashboardPage() {
       // closed_by), so the embed must specify which one — otherwise
       // PostgREST can't disambiguate and the whole query silently errors
       // out, returning null (which looked like "0 observations").
-      .select("*, profiles!observations_reported_by_fkey(full_name, role, company), observation_photos(*)")
+      .select(
+        "*, profiles!observations_reported_by_fkey(full_name, role, company), claimed_by_profile:profiles!observations_claimed_by_fkey(full_name), observation_photos(*)"
+      )
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -144,6 +147,22 @@ export default function DashboardPage() {
     setSelectedObs(obs);
   }, []);
 
+  // Used by NotificationBell: a notification only carries an observation
+  // id, so look it up in the already-loaded list before opening it.
+  const handleOpenObservationById = useCallback(
+    (observationId: string) => {
+      const obs = observations.find((o) => o.id === observationId);
+      if (obs) {
+        setListOpen(false);
+        setPendingPin(null);
+        setSelectedObs(obs);
+      } else {
+        setToast("That observation couldn't be found — it may have been removed.");
+      }
+    },
+    [observations]
+  );
+
   if (!session) {
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
@@ -171,13 +190,16 @@ export default function DashboardPage() {
             <p className="text-[11px] text-slate-400 truncate">{profile.full_name}</p>
           )}
         </div>
-        <a
-          href="/settings"
-          className="tap w-8 h-8 rounded-full bg-slate-700/70 flex items-center justify-center text-sm font-semibold shrink-0"
-          aria-label="Settings"
-        >
-          {profile?.full_name?.[0]?.toUpperCase() ?? "•"}
-        </a>
+        <div className="flex items-center gap-2 shrink-0">
+          {profile && <NotificationBell profile={profile} onOpenObservation={handleOpenObservationById} />}
+          <a
+            href="/settings"
+            className="tap w-8 h-8 rounded-full bg-slate-700/70 flex items-center justify-center text-sm font-semibold shrink-0"
+            aria-label="Settings"
+          >
+            {profile?.full_name?.[0]?.toUpperCase() ?? "•"}
+          </a>
+        </div>
       </header>
 
       {/* Always shows totals across ALL observations — not affected by the

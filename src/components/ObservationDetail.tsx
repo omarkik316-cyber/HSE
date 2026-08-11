@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { notifyStatusChanged } from "@/lib/notifications";
 import { StatusBadge, PriorityBadge } from "./StatusBadge";
 import type { Observation, ObservationStatus, ObservationComment, ObservationPriority } from "@/types";
 import { CATEGORIES } from "@/types";
@@ -109,6 +110,14 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
         author_id: userId,
         comment: actionComment,
         status_change_to: newStatus,
+      });
+
+      notifyStatusChanged({
+        title: observation.title,
+        zoneName: observation.zone_name,
+        observationId: observation.id,
+        newStatus,
+        actorId: userId,
       });
 
       onUpdated();
@@ -355,6 +364,9 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
         <div className="text-xs text-gray-500 dark:text-slate-400 space-y-1">
           <p>Reported: {formatDistanceToNow(new Date(observation.created_at))} ago</p>
           {observation.assigned_contractor && <p>Assigned: {observation.assigned_contractor}</p>}
+          {observation.claimed_by_profile && (
+            <p>🔒 Claimed by: {observation.claimed_by_profile.full_name}</p>
+          )}
           {observation.due_date && (
             <p>Due: {format(new Date(observation.due_date), "d MMM yyyy, h:mm a")}</p>
           )}
@@ -391,37 +403,57 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
             {observation.status === "open" && (
               <button
                 disabled={busy}
-                onClick={() => changeStatus("in_progress", ACTION_LABELS.in_progress)}
+                onClick={() =>
+                  changeStatus("in_progress", `${ACTION_LABELS.in_progress} — claimed by this user`, {
+                    claimed_by: userId,
+                    claimed_at: new Date().toISOString(),
+                  })
+                }
                 className="tap w-full bg-amber-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
               >
                 Mark In Progress
               </button>
             )}
             {observation.status === "in_progress" && (
-              <div>
-                <label htmlFor="after-photo" className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
-                  Correction photo
-                </label>
-                <input
-                  id="after-photo"
-                  name="after_photo"
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => setAfterPhoto(e.target.files?.[0] ?? null)}
-                  className="w-full text-sm mb-2"
-                />
-                <button
-                  disabled={busy}
-                  onClick={submitForReview}
-                  className="tap w-full bg-cyan-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
-                >
-                  Submit for Review
-                </button>
-                <p className="text-[11px] text-gray-400 mt-1">
-                  An admin will review the fix and either approve &amp; close it, or send it back for rework.
-                </p>
-              </div>
+              <>
+                {(observation.claimed_by === userId || userRole === "admin") ? (
+                  <div>
+                    {observation.claimed_by && observation.claimed_by !== userId && (
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 mb-2">
+                        Claimed by {observation.claimed_by_profile?.full_name ?? "another user"} — you&apos;re
+                        acting as admin.
+                      </p>
+                    )}
+                    <label htmlFor="after-photo" className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                      Correction photo
+                    </label>
+                    <input
+                      id="after-photo"
+                      name="after_photo"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => setAfterPhoto(e.target.files?.[0] ?? null)}
+                      className="w-full text-sm mb-2"
+                    />
+                    <button
+                      disabled={busy}
+                      onClick={submitForReview}
+                      className="tap w-full bg-cyan-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
+                    >
+                      Submit for Review
+                    </button>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      An admin will review the fix and either approve &amp; close it, or send it back for rework.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2.5">
+                    🔒 Claimed by <strong>{observation.claimed_by_profile?.full_name ?? "another user"}</strong>.
+                    Only they (or an admin) can submit the fix for this one.
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}

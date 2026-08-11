@@ -48,6 +48,19 @@ This creates:
 - `observation-photos` storage bucket
 - `overdue_observations` view for reporting
 
+Then also run `supabase/add_notifications_and_claiming.sql` (same way — paste
+into SQL Editor → Run). This adds:
+- `notifications`, `notification_reads`, `notification_templates` tables for
+  the in-app notification bell (new observation alerts, status-change
+  alerts, and admin broadcasts like "site walkthrough today")
+- `claimed_by` / `claimed_at` columns on `observations`, so once someone taps
+  "Mark In Progress" the item locks to them and nobody else can also submit
+  a fix for it (an admin can still act on any observation)
+
+If you've run earlier migrations in this folder before (ticket numbers,
+review flow, due-date datetime, etc.), those are unaffected — this file only
+adds new tables/columns and is safe to run once on top of the base schema.
+
 ### 3. Environment variables
 `.env.local` is already filled in with your Supabase project URL and
 publishable key (`wcybokoptckrnnmuvjan.supabase.co`). No map API key is
@@ -98,15 +111,14 @@ repo) to regenerate `public/data/project_zones.geojson`. The app reads that
 file directly; no rebuild of the database is needed.
 
 ## Suggested next steps (not yet built)
-- **Email/SMS notifications** for new observations and overdue items — use
-  Supabase Edge Functions + a service like Resend or Twilio, triggered by a
-  database webhook on `observations` insert/update.
+- **Push/SMS notifications** — the in-app notification bell covers everyone
+  who opens the app; for people who don't, wire the same `notifications`
+  insert points to Supabase Edge Functions + a service like Resend/Twilio/
+  OneSignal to also push outside the app.
 - **PDF/Excel weekly reports** — a scheduled Edge Function querying
   `overdue_observations` and grouping by contractor/zone.
 - **Bulk zone import UI** so an admin can re-upload a KML/GeoJSON from the
   browser instead of a script.
-- **Mobile home-screen install** — the app is already responsive; add a
-  `manifest.json` for "Add to Home Screen" on site.
 
 ## Project structure
 ```
@@ -114,19 +126,29 @@ src/
   app/
     page.tsx              # main dashboard (map + panels)
     login/page.tsx         # auth
+    settings/page.tsx      # appearance, map style, account
+    admin/users/page.tsx   # role/company management (admin only)
+    stats/page.tsx         # week-over-week charts
     layout.tsx, globals.css
   components/
-    MapView.tsx             # Mapbox map, zone layers, pins, click handling
+    MapView.tsx             # Leaflet map, zone layers, pins, click handling
     ObservationForm.tsx      # new observation creation
-    ObservationDetail.tsx    # status workflow, photos, comments
+    ObservationDetail.tsx    # status workflow, claiming, photos, comments
+    ObservationsList.tsx     # bottom-sheet list view
+    NotificationBell.tsx     # notification feed + admin broadcast composer
     StatsBar.tsx             # open/in-progress/closed/overdue counts
+    FilterBar.tsx            # Excel-style multi-select filters
     StatusBadge.tsx
+    BottomNav.tsx            # app-style bottom tab bar
   lib/
     supabaseClient.ts
+    notifications.ts         # notification feed + template helpers
+    settings.tsx             # theme/basemap/text-size context
     zoneDetect.ts            # turf.js point-in-polygon zone auto-detect
   types/index.ts
 public/data/project_zones.geojson   # your project's 67 zone boundaries
-supabase/schema.sql                  # full DB schema + RLS + storage bucket
+supabase/schema.sql                            # full DB schema + RLS + storage bucket
+supabase/add_notifications_and_claiming.sql    # notifications + claiming migration
 utils/supabase/
   client.ts                          # browser Supabase client (@supabase/ssr)
   server.ts                          # server component / route handler client

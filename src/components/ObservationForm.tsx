@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { notifyObservationCreated } from "@/lib/notifications";
 import { CATEGORIES } from "@/types";
 import type { ObservationPriority } from "@/types";
 
@@ -106,6 +107,18 @@ export default function ObservationForm({
           photo_url: publicUrl.publicUrl,
           photo_type: "before",
           uploaded_by: userId,
+        });
+      }
+
+      // Let everyone know a new observation just went up — this is a
+      // best-effort notification, so it never blocks or fails the actual
+      // observation creation above.
+      if (observation) {
+        notifyObservationCreated({
+          title,
+          zoneName,
+          observationId: observation.id,
+          createdBy: userId,
         });
       }
 

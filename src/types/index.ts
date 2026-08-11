@@ -46,10 +46,36 @@ export interface Observation {
   due_date: string | null;
   closed_at: string | null;
   closed_by: string | null;
+  // Whoever taps "Mark In Progress" claims the observation — once set,
+  // nobody else can also start working it (see ObservationDetail).
+  claimed_by: string | null;
+  claimed_at: string | null;
   created_at: string;
   updated_at: string;
   observation_photos?: ObservationPhoto[];
   profiles?: Profile;
+  claimed_by_profile?: Profile;
+}
+
+export interface NotificationRecord {
+  id: string;
+  type: "observation_created" | "status_changed" | "admin_broadcast";
+  title: string;
+  message: string;
+  zone_name: string | null;
+  observation_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  profiles?: Profile;
+  read?: boolean;
+}
+
+export interface NotificationTemplate {
+  id: string;
+  title: string;
+  message: string;
+  created_by: string | null;
+  created_at: string;
 }
 
 export const CATEGORIES = [

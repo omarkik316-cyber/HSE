@@ -95,6 +95,11 @@ export default function ObservationsList({ observations, onSelect }: Observation
                         Consultant
                       </span>
                     )}
+                    {obs.claimed_by_profile && (
+                      <span className="text-[11px] px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                        🔒 {obs.claimed_by_profile.full_name}
+                      </span>
+                    )}
                     {isOverdue && (
                       <span className="text-[11px] px-2 py-1 rounded-full bg-red-600 text-white font-semibold">
                         OVERDUE
