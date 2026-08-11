@@ -35,9 +35,9 @@ export default function ObservationsList({ observations, onSelect }: Observation
   }, [observations, sortMode]);
 
   return (
-    <div className="h-full flex flex-col bg-white">
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-slate-50 shrink-0">
-        <span className="text-xs text-slate-500 font-medium">
+    <div className="h-full flex flex-col bg-white dark:bg-slate-900">
+      <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
+        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
           {observations.length} observation{observations.length === 1 ? "" : "s"}
         </span>
         <div>
@@ -47,7 +47,7 @@ export default function ObservationsList({ observations, onSelect }: Observation
             name="sort"
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
-            className="text-xs border rounded-lg px-2 py-1 bg-white"
+            className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-800"
           >
             <option value="priority_high">Priority: High → Low</option>
             <option value="newest">Date: Newest first</option>
@@ -61,7 +61,7 @@ export default function ObservationsList({ observations, onSelect }: Observation
           No observations match the current filters.
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto divide-y">
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
           {sorted.map((obs) => {
             const isOverdue =
               obs.status !== "closed" && obs.due_date && new Date(obs.due_date) < new Date();
@@ -71,39 +71,45 @@ export default function ObservationsList({ observations, onSelect }: Observation
               <button
                 key={obs.id}
                 onClick={() => onSelect(obs)}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50 transition flex flex-col gap-1.5"
+                className="tap w-full text-left px-4 py-3.5 active:bg-slate-50 dark:active:bg-slate-800/70 flex items-center gap-2"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="font-medium text-sm text-slate-800">
-                    <span className="text-slate-400 font-normal">#{obs.ticket_no}</span> {obs.title}
-                  </span>
-                  <span className="text-[11px] text-slate-400 whitespace-nowrap shrink-0">
-                    {formatDistanceToNow(new Date(obs.created_at))} ago
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <StatusBadge status={obs.status} />
-                  <PriorityBadge priority={obs.priority} />
-                  <span className="text-[11px] px-2 py-1 rounded-full bg-slate-100 text-slate-500">
-                    {obs.category}
-                  </span>
-                  {isConsultantReport && (
-                    <span className="text-[11px] px-2 py-1 rounded-full bg-blue-600 text-white font-semibold">
-                      Consultant
+                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-medium text-sm text-slate-800 dark:text-slate-100 truncate">
+                      <span className="text-slate-400 dark:text-slate-500 font-normal">#{obs.ticket_no}</span>{" "}
+                      {obs.title}
                     </span>
-                  )}
-                  {isOverdue && (
-                    <span className="text-[11px] px-2 py-1 rounded-full bg-red-600 text-white font-semibold">
-                      OVERDUE
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0">
+                      {formatDistanceToNow(new Date(obs.created_at))} ago
                     </span>
-                  )}
-                </div>
+                  </div>
 
-                <div className="text-xs text-slate-500 flex flex-wrap gap-x-3">
-                  {obs.zone_name && <span>📍 {obs.zone_name}</span>}
-                  {obs.assigned_contractor && <span>👷 {obs.assigned_contractor}</span>}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <StatusBadge status={obs.status} />
+                    <PriorityBadge priority={obs.priority} />
+                    <span className="text-[11px] px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                      {obs.category}
+                    </span>
+                    {isConsultantReport && (
+                      <span className="text-[11px] px-2 py-1 rounded-full bg-blue-600 text-white font-semibold">
+                        Consultant
+                      </span>
+                    )}
+                    {isOverdue && (
+                      <span className="text-[11px] px-2 py-1 rounded-full bg-red-600 text-white font-semibold">
+                        OVERDUE
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-slate-500 dark:text-slate-400 flex flex-wrap gap-x-3">
+                    {obs.zone_name && <span>📍 {obs.zone_name}</span>}
+                    {obs.assigned_contractor && <span>👷 {obs.assigned_contractor}</span>}
+                  </div>
                 </div>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0 text-slate-300 dark:text-slate-600">
+                  <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
             );
           })}

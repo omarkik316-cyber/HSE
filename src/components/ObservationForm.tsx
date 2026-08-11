@@ -118,136 +118,148 @@ export default function ObservationForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-5">
-      <div>
-        <h3 className="text-lg font-semibold">New Safety Observation</h3>
-        {zoneName && (
-          <p className="text-sm text-blue-600 mt-1">📍 Zone detected: {zoneName}</p>
-        )}
-        {!zoneName && (
-          <p className="text-sm text-gray-400 mt-1">📍 Outside known project zones</p>
-        )}
-      </div>
-
-      <div>
-        <label htmlFor="obs-title" className="block text-sm font-medium mb-1">Title</label>
-        <input
-          id="obs-title"
-          name="title"
-          required
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full border rounded-lg px-3 py-2 text-sm"
-          placeholder="e.g. Worker without harness at height"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
+    <form onSubmit={handleSubmit} className="h-full flex flex-col bg-white dark:bg-slate-900">
+      <div className="shrink-0 flex items-start justify-between gap-3 px-5 pt-5 pb-3 pt-safe border-b border-slate-100 dark:border-slate-800">
         <div>
-          <label htmlFor="obs-category" className="block text-sm font-medium mb-1">Category</label>
-          <select
-            id="obs-category"
-            name="category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <h3 className="text-lg font-semibold">New Safety Observation</h3>
+          {zoneName && (
+            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">📍 Zone detected: {zoneName}</p>
+          )}
+          {!zoneName && (
+            <p className="text-sm text-gray-400 mt-1">📍 Outside known project zones</p>
+          )}
         </div>
-
-        <div>
-          <label htmlFor="obs-priority" className="block text-sm font-medium mb-1">Priority</label>
-          <select
-            id="obs-priority"
-            name="priority"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as ObservationPriority)}
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-          >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="tap shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-xl leading-none px-1"
+          aria-label="Cancel"
+        >
+          ✕
+        </button>
       </div>
 
-      <div>
-        <label htmlFor="obs-description" className="block text-sm font-medium mb-1">Description</label>
-        <textarea
-          id="obs-description"
-          name="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          className="w-full border rounded-lg px-3 py-2 text-sm"
-          placeholder="What did you observe?"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
         <div>
-          <label htmlFor="obs-contractor" className="block text-sm font-medium mb-1">
-            Assigned Safety Officer / Contractor
-          </label>
+          <label htmlFor="obs-title" className="block text-sm font-medium mb-1">Title</label>
           <input
-            id="obs-contractor"
-            name="assigned_contractor"
-            value={assignedContractor}
-            onChange={(e) => setAssignedContractor(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-            placeholder="Company name"
+            id="obs-title"
+            name="title"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
+            placeholder="e.g. Worker without harness at height"
           />
         </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="obs-category" className="block text-sm font-medium mb-1">Category</label>
+            <select
+              id="obs-category"
+              name="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="obs-priority" className="block text-sm font-medium mb-1">Priority</label>
+            <select
+              id="obs-priority"
+              name="priority"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as ObservationPriority)}
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+        </div>
+
         <div>
-          <label htmlFor="obs-due-date" className="block text-sm font-medium mb-1">Due Date &amp; Time</label>
-          <input
-            id="obs-due-date"
-            name="due_date"
-            type="datetime-local"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-sm"
+          <label htmlFor="obs-description" className="block text-sm font-medium mb-1">Description</label>
+          <textarea
+            id="obs-description"
+            name="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
+            placeholder="What did you observe?"
           />
         </div>
-      </div>
 
-      <div>
-        <label htmlFor="obs-photo" className="block text-sm font-medium mb-1">Photo</label>
-        <input
-          id="obs-photo"
-          name="photo"
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-          className="w-full text-sm"
-        />
-      </div>
-
-      {error && (
-        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          {error}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="obs-contractor" className="block text-sm font-medium mb-1">
+              Assigned Safety Officer / Contractor
+            </label>
+            <input
+              id="obs-contractor"
+              name="assigned_contractor"
+              value={assignedContractor}
+              onChange={(e) => setAssignedContractor(e.target.value)}
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
+              placeholder="Company name"
+            />
+          </div>
+          <div>
+            <label htmlFor="obs-due-date" className="block text-sm font-medium mb-1">Due Date &amp; Time</label>
+            <input
+              id="obs-due-date"
+              name="due_date"
+              type="datetime-local"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
+            />
+          </div>
         </div>
-      )}
 
-      <div className="flex gap-2 pt-2">
+        <div>
+          <label htmlFor="obs-photo" className="block text-sm font-medium mb-1">Photo</label>
+          <input
+            id="obs-photo"
+            name="photo"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+            className="w-full text-sm"
+          />
+        </div>
+
+        {error && (
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="shrink-0 flex gap-2 px-5 pt-3 pb-safe border-t border-slate-100 dark:border-slate-800 mb-4">
         <button
           type="submit"
           disabled={submitting}
-          className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+          className="tap flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
         >
           {submitting ? "Saving..." : "Create Observation"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium border rounded-lg"
+          className="tap px-4 py-3 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-xl"
         >
           Cancel
         </button>

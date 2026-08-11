@@ -29,6 +29,9 @@ const ACTION_LABELS: Record<string, string> = {
   closed: "Approved & Closed",
 };
 
+const inputCls =
+  "w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm";
+
 export default function ObservationDetail({ observation, userId, userRole, onClose, onUpdated }: Props) {
   const [comments, setComments] = useState<ObservationComment[]>([]);
   const [newComment, setNewComment] = useState("");
@@ -194,105 +197,107 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
 
   if (isEditing) {
     return (
-      <div className="p-5 space-y-4 overflow-y-auto h-full">
-        <div className="flex items-start justify-between">
+      <div className="h-full flex flex-col bg-white dark:bg-slate-900">
+        <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-3 pt-safe border-b border-slate-100 dark:border-slate-800">
           <h3 className="text-lg font-semibold">Edit Observation</h3>
-          <button onClick={() => setIsEditing(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+          <button onClick={() => setIsEditing(false)} className="tap text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 text-xl leading-none px-1">✕</button>
         </div>
 
-        <div>
-          <label htmlFor="edit-title" className="block text-sm font-medium mb-1">Title</label>
-          <input
-            id="edit-title"
-            name="title"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
-            <label htmlFor="edit-category" className="block text-sm font-medium mb-1">Category</label>
-            <select
-              id="edit-category"
-              name="category"
-              value={editCategory}
-              onChange={(e) => setEditCategory(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="edit-priority" className="block text-sm font-medium mb-1">Priority</label>
-            <select
-              id="edit-priority"
-              name="priority"
-              value={editPriority}
-              onChange={(e) => setEditPriority(e.target.value as ObservationPriority)}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label htmlFor="edit-description" className="block text-sm font-medium mb-1">Description</label>
-          <textarea
-            id="edit-description"
-            name="description"
-            value={editDescription}
-            onChange={(e) => setEditDescription(e.target.value)}
-            rows={3}
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="edit-contractor" className="block text-sm font-medium mb-1">
-              Assigned Safety Officer / Contractor
-            </label>
+            <label htmlFor="edit-title" className="block text-sm font-medium mb-1">Title</label>
             <input
-              id="edit-contractor"
-              name="assigned_contractor"
-              value={editContractor}
-              onChange={(e) => setEditContractor(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              id="edit-title"
+              name="title"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className={inputCls}
             />
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="edit-category" className="block text-sm font-medium mb-1">Category</label>
+              <select
+                id="edit-category"
+                name="category"
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                className={inputCls}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="edit-priority" className="block text-sm font-medium mb-1">Priority</label>
+              <select
+                id="edit-priority"
+                name="priority"
+                value={editPriority}
+                onChange={(e) => setEditPriority(e.target.value as ObservationPriority)}
+                className={inputCls}
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+          </div>
+
           <div>
-            <label htmlFor="edit-due-date" className="block text-sm font-medium mb-1">Due Date &amp; Time</label>
-            <input
-              id="edit-due-date"
-              name="due_date"
-              type="datetime-local"
-              value={editDueDate}
-              onChange={(e) => setEditDueDate(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+            <label htmlFor="edit-description" className="block text-sm font-medium mb-1">Description</label>
+            <textarea
+              id="edit-description"
+              name="description"
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              rows={3}
+              className={inputCls}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="edit-contractor" className="block text-sm font-medium mb-1">
+                Assigned Safety Officer / Contractor
+              </label>
+              <input
+                id="edit-contractor"
+                name="assigned_contractor"
+                value={editContractor}
+                onChange={(e) => setEditContractor(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label htmlFor="edit-due-date" className="block text-sm font-medium mb-1">Due Date &amp; Time</label>
+              <input
+                id="edit-due-date"
+                name="due_date"
+                type="datetime-local"
+                value={editDueDate}
+                onChange={(e) => setEditDueDate(e.target.value)}
+                className={inputCls}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="flex gap-2 pt-2">
+        <div className="shrink-0 flex gap-2 px-5 pt-3 pb-safe border-t border-slate-100 dark:border-slate-800 mb-4">
           <button
             disabled={busy}
             onClick={saveEdits}
-            className="flex-1 bg-blue-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+            className="tap flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
           >
             {busy ? "Saving..." : "Save Changes"}
           </button>
           <button
             type="button"
             onClick={() => setIsEditing(false)}
-            className="px-4 py-2 text-sm font-medium border rounded-lg"
+            className="tap px-4 py-3 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-xl"
           >
             Cancel
           </button>
@@ -302,237 +307,241 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
   }
 
   return (
-    <div className="p-5 space-y-4 overflow-y-auto h-full">
-      <div className="flex items-start justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">
-            <span className="text-slate-400 font-normal">#{observation.ticket_no}</span> {observation.title}
+    <div className="h-full flex flex-col bg-white dark:bg-slate-900">
+      <div className="shrink-0 flex items-start justify-between gap-2 px-5 pt-5 pb-3 pt-safe border-b border-slate-100 dark:border-slate-800">
+        <div className="min-w-0">
+          <h3 className="text-lg font-semibold truncate">
+            <span className="text-slate-400 dark:text-slate-500 font-normal">#{observation.ticket_no}</span>{" "}
+            {observation.title}
           </h3>
-          <p className="text-sm text-gray-500">{observation.zone_name ?? "Unknown zone"}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{observation.zone_name ?? "Unknown zone"}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {canEditDetails && (
             <button
               onClick={() => setIsEditing(true)}
-              className="text-xs px-2 py-1 border rounded-lg text-slate-600 hover:bg-slate-50"
+              className="tap text-xs px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300"
             >
               Edit
             </button>
           )}
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">✕</button>
+          <button onClick={onClose} className="tap text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 text-xl leading-none px-1">✕</button>
         </div>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        <StatusBadge status={observation.status} />
-        <PriorityBadge priority={observation.priority} />
-        <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
-          {observation.category}
-        </span>
-        {observation.profiles?.role === "consultant" && (
-          <span className="text-xs px-2 py-1 rounded-full bg-blue-600 text-white font-semibold">
-            Consultant · same-day close
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        <div className="flex gap-2 flex-wrap">
+          <StatusBadge status={observation.status} />
+          <PriorityBadge priority={observation.priority} />
+          <span className="text-xs px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+            {observation.category}
           </span>
-        )}
-        {isOverdue && (
-          <span className="text-xs px-2 py-1 rounded-full bg-red-600 text-white font-semibold">
-            OVERDUE
-          </span>
-        )}
-      </div>
-
-      {observation.description && (
-        <p className="text-sm text-gray-700">{observation.description}</p>
-      )}
-
-      <div className="text-xs text-gray-500 space-y-1">
-        <p>Reported: {formatDistanceToNow(new Date(observation.created_at))} ago</p>
-        {observation.assigned_contractor && <p>Assigned: {observation.assigned_contractor}</p>}
-        {observation.due_date && (
-          <p>Due: {format(new Date(observation.due_date), "d MMM yyyy, h:mm a")}</p>
-        )}
-      </div>
-
-      {beforePhotos.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-gray-500 mb-1">Before (violation)</p>
-          <div className="flex gap-2 flex-wrap">
-            {beforePhotos.map((p) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={p.id} src={p.photo_url} alt="Before" className="w-24 h-24 object-cover rounded-lg border" />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {afterPhotos.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-gray-500 mb-1">After (corrected)</p>
-          <div className="flex gap-2 flex-wrap">
-            {afterPhotos.map((p) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={p.id} src={p.photo_url} alt="After" className="w-24 h-24 object-cover rounded-lg border" />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Contractor / safety officer / admin workflow: open -> in progress -> submit for review */}
-      {canWorkOn && (observation.status === "open" || observation.status === "in_progress") && (
-        <div className="border-t pt-3 space-y-2">
-          <p className="text-sm font-medium">Update status</p>
-          {observation.status === "open" && (
-            <button
-              disabled={busy}
-              onClick={() => changeStatus("in_progress", ACTION_LABELS.in_progress)}
-              className="w-full bg-amber-500 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-            >
-              Mark In Progress
-            </button>
+          {observation.profiles?.role === "consultant" && (
+            <span className="text-xs px-2 py-1 rounded-full bg-blue-600 text-white font-semibold">
+              Consultant · same-day close
+            </span>
           )}
-          {observation.status === "in_progress" && (
-            <div>
-              <label htmlFor="after-photo" className="block text-xs text-gray-500 mb-1">
-                Correction photo
-              </label>
-              <input
-                id="after-photo"
-                name="after_photo"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => setAfterPhoto(e.target.files?.[0] ?? null)}
-                className="w-full text-sm mb-2"
-              />
-              <button
-                disabled={busy}
-                onClick={submitForReview}
-                className="w-full bg-cyan-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-              >
-                Submit for Review
-              </button>
-              <p className="text-[11px] text-gray-400 mt-1">
-                An admin will review the fix and either approve &amp; close it, or send it back for rework.
-              </p>
-            </div>
+          {isOverdue && (
+            <span className="text-xs px-2 py-1 rounded-full bg-red-600 text-white font-semibold">
+              OVERDUE
+            </span>
           )}
         </div>
-      )}
 
-      {/* Admin review gate: approve or reject a submitted fix */}
-      {canReview && observation.status === "pending_review" && (
-        <div className="border-t pt-3 space-y-2">
-          <p className="text-sm font-medium text-cyan-700">Review this fix</p>
-          {!rejecting ? (
-            <div className="flex gap-2">
-              <button
-                disabled={busy}
-                onClick={approveAndClose}
-                className="flex-1 bg-green-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-              >
-                ✓ Approve &amp; Close
-              </button>
-              <button
-                disabled={busy}
-                onClick={() => setRejecting(true)}
-                className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-              >
-                ✕ Reject
-              </button>
+        {observation.description && (
+          <p className="text-sm text-gray-700 dark:text-slate-300">{observation.description}</p>
+        )}
+
+        <div className="text-xs text-gray-500 dark:text-slate-400 space-y-1">
+          <p>Reported: {formatDistanceToNow(new Date(observation.created_at))} ago</p>
+          {observation.assigned_contractor && <p>Assigned: {observation.assigned_contractor}</p>}
+          {observation.due_date && (
+            <p>Due: {format(new Date(observation.due_date), "d MMM yyyy, h:mm a")}</p>
+          )}
+        </div>
+
+        {beforePhotos.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Before (violation)</p>
+            <div className="flex gap-2 flex-wrap">
+              {beforePhotos.map((p) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={p.id} src={p.photo_url} alt="Before" className="w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700" />
+              ))}
             </div>
-          ) : (
-            <div className="space-y-2">
-              <label htmlFor="reject-reason" className="block text-xs text-gray-500">
-                Why is this being sent back? (the contractor will see this)
-              </label>
-              <textarea
-                id="reject-reason"
-                name="reject_reason"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                rows={2}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-                placeholder="e.g. Photo doesn't show the harness properly attached"
-              />
+          </div>
+        )}
+
+        {afterPhotos.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">After (corrected)</p>
+            <div className="flex gap-2 flex-wrap">
+              {afterPhotos.map((p) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={p.id} src={p.photo_url} alt="After" className="w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700" />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Contractor / safety officer / admin workflow: open -> in progress -> submit for review */}
+        {canWorkOn && (observation.status === "open" || observation.status === "in_progress") && (
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+            <p className="text-sm font-medium">Update status</p>
+            {observation.status === "open" && (
+              <button
+                disabled={busy}
+                onClick={() => changeStatus("in_progress", ACTION_LABELS.in_progress)}
+                className="tap w-full bg-amber-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
+              >
+                Mark In Progress
+              </button>
+            )}
+            {observation.status === "in_progress" && (
+              <div>
+                <label htmlFor="after-photo" className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                  Correction photo
+                </label>
+                <input
+                  id="after-photo"
+                  name="after_photo"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => setAfterPhoto(e.target.files?.[0] ?? null)}
+                  className="w-full text-sm mb-2"
+                />
+                <button
+                  disabled={busy}
+                  onClick={submitForReview}
+                  className="tap w-full bg-cyan-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
+                >
+                  Submit for Review
+                </button>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  An admin will review the fix and either approve &amp; close it, or send it back for rework.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Admin review gate: approve or reject a submitted fix */}
+        {canReview && observation.status === "pending_review" && (
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
+            <p className="text-sm font-medium text-cyan-700 dark:text-cyan-400">Review this fix</p>
+            {!rejecting ? (
               <div className="flex gap-2">
                 <button
                   disabled={busy}
-                  onClick={confirmReject}
-                  className="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+                  onClick={approveAndClose}
+                  className="tap flex-1 bg-green-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
                 >
-                  Confirm Rejection
+                  ✓ Approve &amp; Close
                 </button>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setRejecting(false);
-                    setRejectReason("");
-                  }}
-                  className="px-4 py-2 text-sm font-medium border rounded-lg"
+                  disabled={busy}
+                  onClick={() => setRejecting(true)}
+                  className="tap flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
                 >
-                  Cancel
+                  ✕ Reject
                 </button>
               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {observation.status === "pending_review" && !canReview && (
-        <div className="border-t pt-3">
-          <p className="text-xs text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-lg px-3 py-2">
-            Waiting on admin review.
-          </p>
-        </div>
-      )}
-
-      <div className="border-t pt-3">
-        <p className="text-sm font-medium mb-2">Activity Log</p>
-        <div className="space-y-2 max-h-48 overflow-y-auto">
-          {comments.map((c) => {
-            const isAction = !!c.status_change_to;
-            return (
-              <div
-                key={c.id}
-                className={
-                  isAction
-                    ? "text-xs bg-slate-50 border-l-2 border-slate-400 rounded-r-lg p-2"
-                    : "text-xs bg-slate-50 rounded-lg p-2"
-                }
-              >
-                {isAction && (
-                  <span className="inline-block text-[10px] font-bold uppercase tracking-wide text-slate-500 mr-1.5">
-                    Action:
-                  </span>
-                )}
-                <span className="font-medium">{c.profiles?.full_name ?? "User"}</span>
-                {" — "}
-                {c.comment}
+            ) : (
+              <div className="space-y-2">
+                <label htmlFor="reject-reason" className="block text-xs text-gray-500 dark:text-slate-400">
+                  Why is this being sent back? (the contractor will see this)
+                </label>
+                <textarea
+                  id="reject-reason"
+                  name="reject_reason"
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={2}
+                  className={inputCls}
+                  placeholder="e.g. Photo doesn't show the harness properly attached"
+                />
+                <div className="flex gap-2">
+                  <button
+                    disabled={busy}
+                    onClick={confirmReject}
+                    className="tap flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
+                  >
+                    Confirm Rejection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRejecting(false);
+                      setRejectReason("");
+                    }}
+                    className="tap px-4 py-2.5 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            );
-          })}
-          {comments.length === 0 && (
-            <p className="text-xs text-gray-400">No activity yet.</p>
-          )}
+            )}
+          </div>
+        )}
+
+        {observation.status === "pending_review" && !canReview && (
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+            <p className="text-xs text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 rounded-xl px-3 py-2">
+              Waiting on admin review.
+            </p>
+          </div>
+        )}
+
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+          <p className="text-sm font-medium mb-2">Activity Log</p>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {comments.map((c) => {
+              const isAction = !!c.status_change_to;
+              return (
+                <div
+                  key={c.id}
+                  className={
+                    isAction
+                      ? "text-xs bg-slate-50 dark:bg-slate-800/70 border-l-2 border-slate-400 dark:border-slate-600 rounded-r-lg p-2"
+                      : "text-xs bg-slate-50 dark:bg-slate-800/70 rounded-lg p-2"
+                  }
+                >
+                  {isAction && (
+                    <span className="inline-block text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mr-1.5">
+                      Action:
+                    </span>
+                  )}
+                  <span className="font-medium">{c.profiles?.full_name ?? "User"}</span>
+                  {" — "}
+                  {c.comment}
+                </div>
+              );
+            })}
+            {comments.length === 0 && (
+              <p className="text-xs text-gray-400">No activity yet.</p>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2 mt-2">
-          <label htmlFor="new-comment" className="sr-only">Add a note</label>
-          <input
-            id="new-comment"
-            name="comment"
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add a note..."
-            className="flex-1 border rounded-lg px-3 py-2 text-sm"
-          />
-          <button
-            onClick={postComment}
-            disabled={busy}
-            className="px-3 py-2 bg-slate-800 text-white rounded-lg text-sm"
-          >
-            Send
-          </button>
-        </div>
+      </div>
+
+      <div className="shrink-0 flex gap-2 px-5 pt-3 pb-safe border-t border-slate-100 dark:border-slate-800 mb-4">
+        <label htmlFor="new-comment" className="sr-only">Add a note</label>
+        <input
+          id="new-comment"
+          name="comment"
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          placeholder="Add a note..."
+          className={`flex-1 ${inputCls}`}
+        />
+        <button
+          onClick={postComment}
+          disabled={busy}
+          className="tap px-4 py-2.5 bg-slate-800 dark:bg-slate-700 text-white rounded-xl text-sm font-medium"
+        >
+          Send
+        </button>
       </div>
     </div>
   );

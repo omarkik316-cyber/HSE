@@ -1,0 +1,12 @@
+{
+  "name": "HSE Observation System",
+  "short_name": "HSE Observations",
+  "description": "Map-based safety observation tracking for construction projects",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

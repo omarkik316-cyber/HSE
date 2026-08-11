@@ -11,6 +11,7 @@ interface MapViewProps {
   observations: Observation[];
   onMapClick: (lng: number, lat: number, zoneName: string | null) => void;
   onPinClick: (observation: Observation) => void;
+  basemap?: "satellite" | "streets";
 }
 
 async function loadZoneLabels(): Promise<FeatureCollection> {
@@ -18,12 +19,17 @@ async function loadZoneLabels(): Promise<FeatureCollection> {
   return res.json();
 }
 
-export default function MapView({ observations, onMapClick, onPinClick }: MapViewProps) {
+export default function MapView({ observations, onMapClick, onPinClick, basemap = "satellite" }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const zonesRef = useRef<FeatureCollection<Polygon> | null>(null);
+  const baseLayerRef = useRef<L.TileLayer | null>(null);
+  const labelsLayerRef = useRef<L.TileLayer | null>(null);
+  const currentBasemapRef = useRef<"satellite" | "streets">("satellite");
   const [mapReady, setMapReady] = useState(false);
+  const basemapRef = useRef(basemap);
+  basemapRef.current = basemap;
 
   // Keep the latest callback refs so the map's event handlers (bound once)
   // always call the current version without needing to re-init the map.
@@ -52,20 +58,34 @@ export default function MapView({ observations, onMapClick, onPinClick }: MapVie
     });
 
     // Esri World Imagery — free satellite basemap, no API key required.
-    L.tileLayer(
+    const satelliteLayer = L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       {
         attribution:
           "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
         maxZoom: 20,
       }
-    ).addTo(map);
+    );
+
+    // Street map alternative, switchable from Settings.
+    const streetsLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 19,
+    });
+
+    currentBasemapRef.current = basemapRef.current;
+    baseLayerRef.current = basemapRef.current === "streets" ? streetsLayer : satelliteLayer;
+    baseLayerRef.current.addTo(map);
 
     // Optional reference labels (roads/place names) overlaid on the imagery.
-    L.tileLayer(
+    // Only shown over satellite imagery — the streets basemap already has
+    // its own labels baked in.
+    const referenceLabels = L.tileLayer(
       "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
       { maxZoom: 20, opacity: 0.9 }
-    ).addTo(map);
+    );
+    labelsLayerRef.current = referenceLabels;
+    if (basemapRef.current !== "streets") referenceLabels.addTo(map);
 
     map.on("click", (e: L.LeafletMouseEvent) => {
       const { lng, lat } = e.latlng;
@@ -151,6 +171,44 @@ export default function MapView({ observations, onMapClick, onPinClick }: MapVie
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Swap the base tile layer (and its label overlay) when the user changes
+  // the map style in Settings, without re-initializing the whole map.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (!baseLayerRef.current) return;
+
+    const wantsStreets = basemap === "streets";
+    const currentIsStreets = currentBasemapRef.current === "streets";
+
+    if (wantsStreets === currentIsStreets) return;
+    currentBasemapRef.current = basemap;
+
+    map.removeLayer(baseLayerRef.current);
+    if (labelsLayerRef.current) map.removeLayer(labelsLayerRef.current);
+
+    const newLayer = wantsStreets
+      ? L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+          maxZoom: 19,
+        })
+      : L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          {
+            attribution:
+              "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+            maxZoom: 20,
+          }
+        );
+    newLayer.addTo(map);
+    newLayer.bringToBack();
+    baseLayerRef.current = newLayer;
+
+    if (!wantsStreets && labelsLayerRef.current) {
+      labelsLayerRef.current.addTo(map);
+    }
+  }, [basemap, mapReady]);
 
   // Render / update observation pins whenever the list changes
   useEffect(() => {

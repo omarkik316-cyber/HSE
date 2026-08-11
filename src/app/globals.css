@@ -4,9 +4,54 @@
 
 @import "leaflet/dist/leaflet.css";
 
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+
 html,
 body {
   height: 100%;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+/* Smooth native-feeling momentum scrolling everywhere */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tap feedback used across buttons/rows for an app-like press effect */
+.tap {
+  transition: transform 0.12s ease, opacity 0.12s ease, background-color 0.15s ease;
+}
+.tap:active {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
+/* Utility to hide scrollbars while keeping scroll (horizontal chip rows, stat rail) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe-area aware padding helpers */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .observation-marker {
@@ -18,4 +63,40 @@ body {
 
 .leaflet-popup-content-wrapper {
   border-radius: 12px !important;
+}
+
+/* Bottom-sheet drag handle */
+.sheet-handle {
+  width: 36px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.35);
+  margin: 8px auto 4px;
+}
+
+/* Simple fade/slide-up animation for sheets and modals */
+@keyframes sheet-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.animate-sheet-up {
+  animation: sheet-up 0.22s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out;
 }

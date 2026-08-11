@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabaseClient";
+import { useSettings } from "@/lib/settings";
 import ObservationForm from "@/components/ObservationForm";
 import ObservationDetail from "@/components/ObservationDetail";
 import ObservationsList from "@/components/ObservationsList";
 import StatsBar from "@/components/StatsBar";
 import FilterBar, { defaultFilters, applyFilters, type Filters } from "@/components/FilterBar";
+import BottomNav from "@/components/BottomNav";
 import type { Observation, Profile } from "@/types";
-import { ROLE_LABELS } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 
 // Leaflet touches `window`/`document` at import time, which breaks Next.js's
@@ -27,6 +28,7 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 type PendingPin = { lng: number; lat: number; zoneName: string | null } | null;
 
 export default function DashboardPage() {
+  const { basemap } = useSettings();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
@@ -119,7 +121,7 @@ export default function DashboardPage() {
         profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin";
       if (!canCreate) {
         setToast(
-          `Your role (${profile ? ROLE_LABELS[profile.role] : "unknown"}) can't create new observations. Ask an admin to change your role on the "Manage Users" page if this is wrong.`
+          `Your role can't create new observations. Ask an admin to change your role on the "Users" tab if this is wrong.`
         );
         return;
       }
@@ -144,10 +146,10 @@ export default function DashboardPage() {
 
   if (!session) {
     return (
-      <div className="h-dvh flex items-center justify-center bg-slate-100">
+      <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
         <div className="text-center space-y-3">
           <p className="text-lg font-medium">Please sign in</p>
-          <a href="/login" className="text-blue-600 underline">
+          <a href="/login" className="text-blue-600 dark:text-blue-400 underline">
             Go to login page
           </a>
         </div>
@@ -155,29 +157,27 @@ export default function DashboardPage() {
     );
   }
 
+  const canCreate =
+    profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin";
+  const overlayOpen = !!(pendingPin || selectedObs);
+
   return (
-    <div className="h-dvh flex flex-col">
-      <header className="bg-slate-900 text-white px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="font-semibold text-sm sm:text-base">HSE Safety Observation System</h1>
-        <div className="flex items-center gap-2 text-xs sm:text-sm">
-          <span className="text-slate-300 hidden sm:inline">
-            {profile?.full_name} · {profile ? ROLE_LABELS[profile.role] : ""}
-          </span>
-          <a href="/stats" className="bg-slate-700 hover:bg-slate-600 px-2.5 py-1 rounded-lg whitespace-nowrap">
-            Stats
-          </a>
-          {profile?.role === "admin" && (
-            <a href="/admin/users" className="bg-slate-700 hover:bg-slate-600 px-2.5 py-1 rounded-lg whitespace-nowrap">
-              Manage Users
-            </a>
+    <div className="h-dvh flex flex-col bg-slate-50 dark:bg-slate-950">
+      {/* Compact app bar — a single line, no wrapping buttons. */}
+      <header className="shrink-0 bg-slate-900 dark:bg-black text-white px-4 pt-safe pb-2.5 pt-3 flex items-center justify-between">
+        <div className="min-w-0">
+          <h1 className="font-semibold text-[15px] leading-tight truncate">HSE Observations</h1>
+          {profile && (
+            <p className="text-[11px] text-slate-400 truncate">{profile.full_name}</p>
           )}
-          <button
-            onClick={() => supabase.auth.signOut()}
-            className="bg-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap"
-          >
-            Sign out
-          </button>
         </div>
+        <a
+          href="/settings"
+          className="tap w-8 h-8 rounded-full bg-slate-700/70 flex items-center justify-center text-sm font-semibold shrink-0"
+          aria-label="Settings"
+        >
+          {profile?.full_name?.[0]?.toUpperCase() ?? "•"}
+        </a>
       </header>
 
       {/* Always shows totals across ALL observations — not affected by the
@@ -190,7 +190,7 @@ export default function DashboardPage() {
       <div className="flex-1 relative overflow-hidden">
         {/* Non-blocking toast, replaces the old alert() */}
         {toast && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 max-w-[90vw] bg-slate-900 text-white text-xs px-4 py-2.5 rounded-lg shadow-lg text-center">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 max-w-[90vw] bg-slate-900 dark:bg-slate-800 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg text-center animate-fade-in">
             {toast}
           </div>
         )}
@@ -208,26 +208,24 @@ export default function DashboardPage() {
             observations={filteredObservations}
             onMapClick={handleMapClick}
             onPinClick={handlePinClick}
+            basemap={basemap}
           />
-          {(profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin") &&
-            !pendingPin &&
-            !selectedObs &&
-            !listOpen && (
-            <div className="absolute bottom-4 left-4 right-24 sm:right-auto bg-white/90 backdrop-blur px-3 py-2 rounded-lg shadow text-xs text-slate-600">
+          {canCreate && !pendingPin && !selectedObs && !listOpen && (
+            <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-white/95 dark:bg-slate-900/90 backdrop-blur px-3 py-2 rounded-xl shadow text-xs text-slate-600 dark:text-slate-300">
               Tap anywhere on the map to log a new observation
             </div>
           )}
         </div>
 
         {/* Floating handle to open the observations list as a bottom sheet. */}
-        {!listOpen && (
+        {!listOpen && !overlayOpen && (
           <button
             onClick={() => {
               setPendingPin(null);
               setSelectedObs(null);
               setListOpen(true);
             }}
-            className="absolute bottom-4 right-4 z-20 bg-slate-900 text-white text-xs font-medium px-3 py-2 rounded-full shadow-lg flex items-center gap-1.5"
+            className="tap absolute bottom-4 right-4 z-20 bg-slate-900 dark:bg-blue-600 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-1.5"
           >
             📋 Observations ({filteredObservations.length})
           </button>
@@ -236,12 +234,13 @@ export default function DashboardPage() {
         {/* Bottom sheet: covers the lower half of the screen, map stays
             visible (and unresized) in the upper half. */}
         {listOpen && (
-          <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-white border-t shadow-2xl rounded-t-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-3 py-1.5 border-b bg-slate-50 shrink-0">
-              <span className="text-xs font-semibold text-slate-600">Observations List</span>
+          <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shadow-2xl rounded-t-3xl overflow-hidden flex flex-col animate-sheet-up">
+            <div className="sheet-handle shrink-0" />
+            <div className="flex items-center justify-between px-4 py-1.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Observations List</span>
               <button
                 onClick={() => setListOpen(false)}
-                className="text-slate-400 hover:text-slate-700 text-lg leading-none px-2"
+                className="tap text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-lg leading-none px-2"
                 aria-label="Close list"
               >
                 ▼
@@ -256,8 +255,8 @@ export default function DashboardPage() {
         {/* On mobile this becomes a full-screen overlay so the map never
             gets squeezed into a sliver next to the panel. On larger
             screens (sm+) it reverts to a fixed-width sidebar. */}
-        {(pendingPin || selectedObs) && (
-          <div className="fixed sm:absolute inset-0 sm:inset-y-0 sm:right-0 sm:left-auto z-30 w-full sm:w-[420px] sm:max-w-[90vw] bg-white sm:border-l shadow-xl overflow-y-auto">
+        {overlayOpen && (
+          <div className="fixed sm:absolute inset-0 sm:inset-y-0 sm:right-0 sm:left-auto z-30 w-full sm:w-[420px] sm:max-w-[90vw] bg-white dark:bg-slate-900 sm:border-l border-slate-100 dark:border-slate-800 shadow-xl overflow-hidden animate-fade-in">
             {pendingPin && profile && (
               <ObservationForm
                 lng={pendingPin.lng}
@@ -286,6 +285,8 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      <BottomNav />
     </div>
   );
 }

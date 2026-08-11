@@ -2,17 +2,17 @@ import type { ObservationStatus, ObservationPriority } from "@/types";
 import { STATUS_LABELS } from "@/types";
 
 const STATUS_STYLES: Record<ObservationStatus, string> = {
-  open: "bg-red-100 text-red-700 border-red-300",
-  in_progress: "bg-amber-100 text-amber-700 border-amber-300",
-  pending_review: "bg-cyan-100 text-cyan-700 border-cyan-300",
-  closed: "bg-green-100 text-green-700 border-green-300",
+  open: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800",
+  in_progress: "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800",
+  pending_review: "bg-cyan-100 text-cyan-700 border-cyan-300 dark:bg-cyan-900/40 dark:text-cyan-300 dark:border-cyan-800",
+  closed: "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-800",
 };
 
 const PRIORITY_STYLES: Record<ObservationPriority, string> = {
-  low: "bg-lime-100 text-lime-800",
-  medium: "bg-amber-100 text-amber-800",
-  high: "bg-orange-100 text-orange-800",
-  critical: "bg-red-100 text-red-800",
+  low: "bg-lime-100 text-lime-800 dark:bg-lime-900/40 dark:text-lime-300",
+  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  high: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  critical: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
 };
 
 export function StatusBadge({ status }: { status: ObservationStatus }) {

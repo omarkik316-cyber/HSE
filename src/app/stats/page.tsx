@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { Observation, Profile, ObservationPriority } from "@/types";
 import { ROLE_LABELS } from "@/types";
 import type { Session } from "@supabase/supabase-js";
+import BottomNav from "@/components/BottomNav";
 import {
   ResponsiveContainer,
   BarChart,
@@ -201,28 +202,27 @@ export default function StatsPage() {
 
   if (!session) {
     return (
-      <div className="h-dvh flex items-center justify-center bg-slate-100">
+      <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
         <div className="text-center space-y-3">
           <p className="text-lg font-medium">Please sign in</p>
-          <a href="/login" className="text-blue-600 underline">Go to login page</a>
+          <a href="/login" className="text-blue-600 dark:text-blue-400 underline">Go to login page</a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-dvh bg-slate-50">
-      <header className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-        <h1 className="font-semibold text-sm sm:text-base">Statistics — Week over Week</h1>
-        <div className="flex items-center gap-3 text-xs sm:text-sm">
-          <span className="text-slate-300 hidden sm:inline">
-            {profile?.full_name} · {profile ? ROLE_LABELS[profile.role] : ""}
-          </span>
-          <a href="/" className="text-slate-300 hover:text-white underline">← Back to dashboard</a>
-        </div>
+    <div className="h-dvh flex flex-col bg-slate-50 dark:bg-slate-950">
+      <header className="shrink-0 bg-slate-900 dark:bg-black text-white px-4 pt-safe pb-3 pt-3">
+        <h1 className="font-semibold text-[15px]">Statistics — Week over Week</h1>
+        {profile && (
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            {profile.full_name} · {ROLE_LABELS[profile.role]}
+          </p>
+        )}
       </header>
 
-      <div className="max-w-4xl mx-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto p-4 space-y-6 pb-8">
         {loading ? (
           <div className="text-center text-slate-400 py-12">Loading...</div>
         ) : (
@@ -235,7 +235,7 @@ export default function StatsPage() {
                 { label: "Closed", value: totals.closed, color: "text-green-600" },
                 { label: "Total (all time)", value: totals.total, color: "text-slate-700" },
               ].map((s) => (
-                <div key={s.label} className="bg-white rounded-xl border p-4 text-center">
+                <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 text-center">
                   <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
                   <div className="text-xs text-slate-500 mt-1">{s.label}</div>
                 </div>
@@ -244,8 +244,8 @@ export default function StatsPage() {
 
             {/* 14-day daily trend chart */}
             <div>
-              <h2 className="text-sm font-semibold text-slate-600 mb-2">Daily Trend — Last 14 Days</h2>
-              <div className="bg-white rounded-xl border p-4">
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">Daily Trend — Last 14 Days</h2>
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={dailyTrendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -275,8 +275,8 @@ export default function StatsPage() {
 
             {/* This week vs last week comparison chart + numbers */}
             <div>
-              <h2 className="text-sm font-semibold text-slate-600 mb-2">This Week vs Last Week</h2>
-              <div className="bg-white rounded-xl border p-4">
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">This Week vs Last Week</h2>
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={comparisonChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -291,53 +291,53 @@ export default function StatsPage() {
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4 mt-3">
-                <div className="bg-white rounded-xl border p-4 space-y-3">
-                  <div className="text-xs font-medium text-slate-400 uppercase">This Week — detail</div>
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 space-y-3">
+                  <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase">This Week — detail</div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-xl font-bold text-slate-800">{thisWeekStats.created}</div>
-                      <div className="text-xs text-slate-500">New observations</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">New observations</div>
                       <Delta current={thisWeekStats.created} previous={lastWeekStats.created} />
                     </div>
                     <div>
                       <div className="text-xl font-bold text-green-700">{thisWeekStats.closed}</div>
-                      <div className="text-xs text-slate-500">Closed</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Closed</div>
                       <Delta current={thisWeekStats.closed} previous={lastWeekStats.closed} />
                     </div>
                     <div>
                       <div className="text-xl font-bold text-red-700">{thisWeekStats.critical}</div>
-                      <div className="text-xs text-slate-500">Critical raised</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Critical raised</div>
                       <Delta current={thisWeekStats.critical} previous={lastWeekStats.critical} />
                     </div>
                     <div>
                       <div className="text-xl font-bold text-slate-800">
                         {thisWeekStats.avgCloseHours !== null ? `${thisWeekStats.avgCloseHours.toFixed(1)}h` : "—"}
                       </div>
-                      <div className="text-xs text-slate-500">Avg. time to close</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Avg. time to close</div>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl border p-4 space-y-3">
-                  <div className="text-xs font-medium text-slate-400 uppercase">Last Week — detail</div>
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 space-y-3">
+                  <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase">Last Week — detail</div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-xl font-bold text-slate-500">{lastWeekStats.created}</div>
-                      <div className="text-xs text-slate-500">New observations</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">New observations</div>
                     </div>
                     <div>
                       <div className="text-xl font-bold text-slate-500">{lastWeekStats.closed}</div>
-                      <div className="text-xs text-slate-500">Closed</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Closed</div>
                     </div>
                     <div>
                       <div className="text-xl font-bold text-slate-500">{lastWeekStats.critical}</div>
-                      <div className="text-xs text-slate-500">Critical raised</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Critical raised</div>
                     </div>
                     <div>
                       <div className="text-xl font-bold text-slate-500">
                         {lastWeekStats.avgCloseHours !== null ? `${lastWeekStats.avgCloseHours.toFixed(1)}h` : "—"}
                       </div>
-                      <div className="text-xs text-slate-500">Avg. time to close</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">Avg. time to close</div>
                     </div>
                   </div>
                 </div>
@@ -346,8 +346,8 @@ export default function StatsPage() {
 
             {/* Priority breakdown chart */}
             <div>
-              <h2 className="text-sm font-semibold text-slate-600 mb-2">New Observations by Priority</h2>
-              <div className="bg-white rounded-xl border p-4">
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">New Observations by Priority</h2>
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={priorityChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -368,6 +368,8 @@ export default function StatsPage() {
           </>
         )}
       </div>
+
+      <BottomNav />
     </div>
   );
 }

@@ -13,23 +13,30 @@ export default function StatsBar({ observations }: { observations: Observation[]
   ).length;
 
   const stats = [
-    { label: "Open", value: open, color: "text-red-600" },
-    { label: "In Progress", value: inProgress, color: "text-amber-600" },
-    { label: "Pending Review", value: pendingReview, color: "text-cyan-600" },
-    { label: "Closed", value: closed, color: "text-green-600" },
-    { label: "Overdue", value: overdue, color: "text-red-700" },
-    { label: "Critical (active)", value: critical, color: "text-red-800" },
-    { label: "Total", value: observations.length, color: "text-slate-700" },
+    { label: "Open", value: open, color: "text-red-600 dark:text-red-400" },
+    { label: "In Progress", value: inProgress, color: "text-amber-600 dark:text-amber-400" },
+    { label: "Pending Review", value: pendingReview, color: "text-cyan-600 dark:text-cyan-400" },
+    { label: "Overdue", value: overdue, color: "text-red-700 dark:text-red-400" },
+    { label: "Critical", value: critical, color: "text-red-800 dark:text-red-300" },
+    { label: "Closed", value: closed, color: "text-green-600 dark:text-green-400" },
+    { label: "Total", value: observations.length, color: "text-slate-700 dark:text-slate-200" },
   ];
 
   return (
-    <div className="grid grid-cols-3 md:grid-cols-7 gap-2 p-3 bg-white border-b">
-      {stats.map((s) => (
-        <div key={s.label} className="text-center px-2 py-1">
-          <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
-          <div className="text-[11px] text-gray-500">{s.label}</div>
-        </div>
-      ))}
+    <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar px-3 py-2.5 snap-x snap-mandatory">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="snap-start shrink-0 min-w-[84px] bg-slate-50 dark:bg-slate-800/70 rounded-2xl px-3 py-2 text-center"
+          >
+            <div className={`text-lg font-bold leading-tight ${s.color}`}>{s.value}</div>
+            <div className="text-[10.5px] text-slate-500 dark:text-slate-400 leading-tight whitespace-nowrap">
+              {s.label}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
