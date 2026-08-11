@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Observation, ObservationStatus, ObservationPriority } from "@/types";
 import { STATUS_LABELS, CATEGORIES } from "@/types";
 
 export interface Filters {
   statuses: Set<ObservationStatus>;
   priorities: Set<ObservationPriority>;
-  category: string; // "all" or a specific category
-  zone: string; // "all" or a specific zone_name
+  // Empty set = no restriction ("All"), same convention as an Excel column
+  // filter with every box checked.
+  categories: Set<string>;
+  zones: Set<string>;
 }
 
 export const ALL_STATUSES: ObservationStatus[] = ["open", "in_progress", "pending_review", "closed"];
@@ -16,57 +18,187 @@ export const ALL_PRIORITIES: ObservationPriority[] = ["low", "medium", "high", "
 
 export function defaultFilters(): Filters {
   return {
-    statuses: new Set(ALL_STATUSES),
+    // Closed observations are done — nobody needs to act on them, so they
+    // stay out of view until someone deliberately turns "Closed" back on.
+    statuses: new Set(ALL_STATUSES.filter((s) => s !== "closed")),
     priorities: new Set(ALL_PRIORITIES),
-    category: "all",
-    zone: "all",
+    categories: new Set(),
+    zones: new Set(),
   };
+}
+
+function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
+}
+
+export function isDefaultFilters(filters: Filters): boolean {
+  const d = defaultFilters();
+  return (
+    setsEqual(filters.statuses, d.statuses) &&
+    setsEqual(filters.priorities, d.priorities) &&
+    filters.categories.size === 0 &&
+    filters.zones.size === 0
+  );
 }
 
 export function applyFilters(observations: Observation[], filters: Filters): Observation[] {
   return observations.filter((o) => {
-    if (!filters.statuses.has(o.status)) return false;
-    if (!filters.priorities.has(o.priority)) return false;
-    if (filters.category !== "all" && o.category !== filters.category) return false;
-    if (filters.zone !== "all" && o.zone_name !== filters.zone) return false;
+    if (filters.statuses.size > 0 && !filters.statuses.has(o.status)) return false;
+    if (filters.priorities.size > 0 && !filters.priorities.has(o.priority)) return false;
+    if (filters.categories.size > 0 && !filters.categories.has(o.category)) return false;
+    if (filters.zones.size > 0 && (!o.zone_name || !filters.zones.has(o.zone_name))) return false;
     return true;
   });
 }
 
-const STATUS_CHIP_STYLE: Record<ObservationStatus, { active: string; inactive: string }> = {
-  open: {
-    active: "bg-red-600 text-white border-red-600",
-    inactive: "bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900",
-  },
-  in_progress: {
-    active: "bg-amber-500 text-white border-amber-500",
-    inactive: "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900",
-  },
-  pending_review: {
-    active: "bg-cyan-600 text-white border-cyan-600",
-    inactive: "bg-white dark:bg-slate-800 text-cyan-600 dark:text-cyan-400 border-cyan-200 dark:border-cyan-900",
-  },
-  closed: {
-    active: "bg-green-600 text-white border-green-600",
-    inactive: "bg-white dark:bg-slate-800 text-green-600 dark:text-green-400 border-green-200 dark:border-green-900",
-  },
-};
+interface Option {
+  value: string;
+  label: string;
+}
 
-const PRIORITY_CHIP_STYLE: Record<ObservationPriority, { active: string; inactive: string }> = {
-  low: { active: "bg-lime-600 text-white border-lime-600", inactive: "bg-white dark:bg-slate-800 text-lime-700 dark:text-lime-400 border-lime-200 dark:border-lime-900" },
-  medium: {
-    active: "bg-amber-600 text-white border-amber-600",
-    inactive: "bg-white dark:bg-slate-800 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900",
-  },
-  high: {
-    active: "bg-orange-600 text-white border-orange-600",
-    inactive: "bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-900",
-  },
-  critical: { active: "bg-red-700 text-white border-red-700", inactive: "bg-white dark:bg-slate-800 text-red-700 dark:text-red-400 border-red-200 dark:border-red-900" },
-};
+// A single Excel-style column filter: tap to expand, search box, a
+// "Select All" master checkbox, and one checkbox per value. An empty
+// `selected` set means "All" (nothing excluded) — exactly like a fresh
+// Excel filter with every box ticked.
+function ExcelFilterField({
+  title,
+  options,
+  selected,
+  onChange,
+  expanded,
+  onToggleExpanded,
+}: {
+  title: string;
+  options: Option[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const checkAllRef = useRef<HTMLInputElement>(null);
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const q = search.trim().toLowerCase();
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, search]);
+
+  // "All" is represented as an empty set, so everything reads as checked.
+  const isChecked = (value: string) => selected.size === 0 || selected.has(value);
+  const checkedCount = options.filter((o) => isChecked(o.value)).length;
+  const allChecked = checkedCount === options.length;
+  const noneChecked = checkedCount === 0;
+
+  if (checkAllRef.current) {
+    checkAllRef.current.indeterminate = !allChecked && !noneChecked;
+  }
+
+  function toggleValue(value: string) {
+    // Materialize the implicit "all selected" set the first time someone
+    // unchecks a single box, same as Excel does under the hood.
+    const base = selected.size === 0 ? new Set(options.map((o) => o.value)) : new Set(selected);
+    if (base.has(value)) base.delete(value);
+    else base.add(value);
+    // If everything ends up checked again, collapse back to "All" (empty
+    // set) so summaries read cleanly.
+    onChange(base.size === options.length ? new Set() : base);
+  }
+
+  function setAll(checked: boolean) {
+    if (checked) {
+      onChange(new Set());
+    } else {
+      onChange(new Set(["__none_selected__"]));
+    }
+  }
+
+  const summary = allChecked ? "All" : noneChecked ? "None" : `${checkedCount} of ${options.length}`;
+
+  return (
+    <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggleExpanded}
+        className="tap w-full flex items-center justify-between px-3.5 py-3 bg-slate-50 dark:bg-slate-800/70"
+      >
+        <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-slate-400">
+            <path d="M4 5h16l-6 8v6l-4-2v-4L4 5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+          </svg>
+          {title}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className={`text-xs ${allChecked ? "text-slate-400 dark:text-slate-500" : "text-blue-600 dark:text-blue-400 font-semibold"}`}>
+            {summary}
+          </span>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            className={`text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+          >
+            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+          {options.length > 6 && (
+            <div className="p-2.5 border-b border-slate-100 dark:border-slate-800">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Search ${title.toLowerCase()}...`}
+                className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-1.5 text-xs"
+              />
+            </div>
+          )}
+
+          <label className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-slate-100 dark:border-slate-800 cursor-pointer">
+            <input
+              ref={checkAllRef}
+              type="checkbox"
+              checked={allChecked}
+              onChange={(e) => setAll(e.target.checked)}
+              className="w-4 h-4 rounded accent-blue-600"
+            />
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              (Select All)
+            </span>
+          </label>
+
+          <div className="max-h-48 overflow-y-auto">
+            {filteredOptions.map((opt) => (
+              <label
+                key={opt.value}
+                className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked(opt.value)}
+                  onChange={() => toggleValue(opt.value)}
+                  className="w-4 h-4 rounded accent-blue-600"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-200">{opt.label}</span>
+              </label>
+            ))}
+            {filteredOptions.length === 0 && (
+              <p className="px-3.5 py-3 text-xs text-slate-400">No matches.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface FilterBarProps {
-  observations: Observation[]; // full unfiltered list, used to build the zone dropdown
+  observations: Observation[]; // full unfiltered list, used to build the zone list
   filters: Filters;
   onChange: (filters: Filters) => void;
 }
@@ -76,6 +208,7 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
   // Draft state so the sheet can be dismissed without applying half-made
   // changes, mirroring the "Cancel / Apply" pattern of a native filter sheet.
   const [draft, setDraft] = useState<Filters>(filters);
+  const [expandedField, setExpandedField] = useState<string | null>("status");
 
   const zoneOptions = useMemo(() => {
     const zones = new Set<string>();
@@ -85,35 +218,16 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
     return Array.from(zones).sort();
   }, [observations]);
 
-  function toggleStatus(status: ObservationStatus) {
-    const next = new Set(filters.statuses);
-    if (next.has(status)) next.delete(status);
-    else next.add(status);
-    // Never allow an empty set — that would silently hide everything.
-    if (next.size === 0) return;
-    onChange({ ...filters, statuses: next });
-  }
+  const statusOptions: Option[] = ALL_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }));
+  const priorityOptions: Option[] = ALL_PRIORITIES.map((p) => ({
+    value: p,
+    label: p.charAt(0).toUpperCase() + p.slice(1),
+  }));
+  const categoryOptions: Option[] = CATEGORIES.map((c) => ({ value: c, label: c }));
+  const zoneOptionList: Option[] = zoneOptions.map((z) => ({ value: z, label: z }));
 
-  function toggleDraftPriority(priority: ObservationPriority) {
-    setDraft((d) => {
-      const next = new Set(d.priorities);
-      if (next.has(priority)) next.delete(priority);
-      else next.add(priority);
-      if (next.size === 0) return d;
-      return { ...d, priorities: next };
-    });
-  }
-
-  const isDefault =
-    filters.statuses.size === ALL_STATUSES.length &&
-    filters.priorities.size === ALL_PRIORITIES.length &&
-    filters.category === "all" &&
-    filters.zone === "all";
-
-  const activeExtraCount =
-    (ALL_PRIORITIES.length - filters.priorities.size) +
-    (filters.category !== "all" ? 1 : 0) +
-    (filters.zone !== "all" ? 1 : 0);
+  const isDefault = isDefaultFilters(filters);
+  const resultCount = useMemo(() => applyFilters(observations, filters).length, [observations, filters]);
 
   function openSheet() {
     setDraft(filters);
@@ -126,47 +240,31 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
   }
 
   function resetAll() {
-    onChange(defaultFilters());
-    setDraft(defaultFilters());
-    setSheetOpen(false);
+    const d = defaultFilters();
+    onChange(d);
+    setDraft(d);
+  }
+
+  function toggle(field: string) {
+    setExpandedField((cur) => (cur === field ? null : field));
   }
 
   return (
     <>
       <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
-        {/* Quick status chips — horizontal scroll, never wraps, so nothing
-            crowds or overlaps on a narrow phone screen. */}
-        <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {ALL_STATUSES.map((s) => {
-            const active = filters.statuses.has(s);
-            const style = STATUS_CHIP_STYLE[s];
-            return (
-              <button
-                key={s}
-                onClick={() => toggleStatus(s)}
-                className={`tap shrink-0 px-3 py-1.5 rounded-full border text-xs font-medium ${
-                  active ? style.active : style.inactive
-                }`}
-              >
-                {STATUS_LABELS[s]}
-              </button>
-            );
-          })}
-        </div>
-
         <button
           onClick={openSheet}
-          className="tap shrink-0 relative flex items-center gap-1 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300"
+          className="tap flex-1 flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          Filters
-          {activeExtraCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] flex items-center justify-center font-bold">
-              {activeExtraCount}
-            </span>
-          )}
+          <span className="flex items-center gap-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M4 5h16l-6 8v6l-4-2v-4L4 5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+            </svg>
+            Filters
+          </span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">
+            {resultCount} result{resultCount === 1 ? "" : "s"}
+          </span>
         </button>
 
         {!isDefault && (
@@ -185,7 +283,7 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
             className="absolute inset-0 bg-black/40 animate-fade-in"
             onClick={() => setSheetOpen(false)}
           />
-          <div className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl shadow-sheet max-h-[85vh] flex flex-col animate-sheet-up">
+          <div className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl shadow-sheet max-h-[88vh] flex flex-col animate-sheet-up">
             <div className="sheet-handle" />
             <div className="px-5 pb-1 flex items-center justify-between">
               <h3 className="text-base font-semibold">Filters</h3>
@@ -194,66 +292,51 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-5">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase mb-2">Priority</p>
-                <div className="flex flex-wrap gap-2">
-                  {ALL_PRIORITIES.map((p) => {
-                    const active = draft.priorities.has(p);
-                    const style = PRIORITY_CHIP_STYLE[p];
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => toggleDraftPriority(p)}
-                        className={`tap px-3 py-1.5 rounded-full border text-xs font-semibold uppercase ${
-                          active ? style.active : style.inactive
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase mb-2">Category</p>
-                <label htmlFor="filter-category" className="sr-only">Filter by category</label>
-                <select
-                  id="filter-category"
-                  name="category_filter"
-                  value={draft.category}
-                  onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}
-                  className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800"
-                >
-                  <option value="all">All Categories</option>
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase mb-2">Zone</p>
-                <label htmlFor="filter-zone" className="sr-only">Filter by zone</label>
-                <select
-                  id="filter-zone"
-                  name="zone_filter"
-                  value={draft.zone}
-                  onChange={(e) => setDraft((d) => ({ ...d, zone: e.target.value }))}
-                  className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800"
-                >
-                  <option value="all">All Zones</option>
-                  {zoneOptions.map((z) => (
-                    <option key={z} value={z}>{z}</option>
-                  ))}
-                </select>
-              </div>
+            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2.5">
+              <ExcelFilterField
+                title="Status"
+                options={statusOptions}
+                selected={draft.statuses as unknown as Set<string>}
+                onChange={(next) =>
+                  setDraft((d) => ({ ...d, statuses: next as unknown as Set<ObservationStatus> }))
+                }
+                expanded={expandedField === "status"}
+                onToggleExpanded={() => toggle("status")}
+              />
+              <ExcelFilterField
+                title="Priority"
+                options={priorityOptions}
+                selected={draft.priorities as unknown as Set<string>}
+                onChange={(next) =>
+                  setDraft((d) => ({ ...d, priorities: next as unknown as Set<ObservationPriority> }))
+                }
+                expanded={expandedField === "priority"}
+                onToggleExpanded={() => toggle("priority")}
+              />
+              <ExcelFilterField
+                title="Category"
+                options={categoryOptions}
+                selected={draft.categories}
+                onChange={(next) => setDraft((d) => ({ ...d, categories: next }))}
+                expanded={expandedField === "category"}
+                onToggleExpanded={() => toggle("category")}
+              />
+              <ExcelFilterField
+                title="Zone"
+                options={zoneOptionList}
+                selected={draft.zones}
+                onChange={(next) => setDraft((d) => ({ ...d, zones: next }))}
+                expanded={expandedField === "zone"}
+                onToggleExpanded={() => toggle("zone")}
+              />
             </div>
 
             <div className="px-5 pt-3 pb-safe border-t border-slate-100 dark:border-slate-800 flex gap-2 mb-4">
               <button
-                onClick={resetAll}
+                onClick={() => {
+                  const d = defaultFilters();
+                  setDraft(d);
+                }}
                 className="tap px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-600 dark:text-slate-300"
               >
                 Reset
