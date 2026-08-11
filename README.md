@@ -61,6 +61,29 @@ If you've run earlier migrations in this folder before (ticket numbers,
 review flow, due-date datetime, etc.), those are unaffected — this file only
 adds new tables/columns and is safe to run once on top of the base schema.
 
+### Real push notifications (phone notification tray, app closed or open)
+The in-app bell (🔔) only shows notifications while someone has the app
+open. To also push a real Android notification — via OneSignal, no separate
+Firebase project needed:
+
+1. Create a free account at [onesignal.com](https://onesignal.com) → New App
+   → pick **Google Android (FCM)** → OneSignal will offer to use its own
+   push credentials automatically, no `google-services.json` required.
+2. From **Settings → Keys & IDs**, copy the **OneSignal App ID** and the
+   **REST API Key**.
+3. Deploy the Edge Function that actually sends the push:
+   ```bash
+   supabase functions deploy send-push
+   supabase secrets set ONESIGNAL_APP_ID=your-app-id
+   supabase secrets set ONESIGNAL_REST_API_KEY=your-rest-api-key
+   ```
+4. In the Android app project, open `HSEApp/app/src/main/java/com/hse/app/HSEApplication.kt`
+   and paste the App ID where marked, then rebuild the APK.
+
+That's it — every time the web app creates a notification (new observation,
+status change, or an admin broadcast), it also calls `send-push`, which pushes
+to every phone that has the app installed and notifications enabled.
+
 ### 3. Environment variables
 `.env.local` is already filled in with your Supabase project URL and
 publishable key (`wcybokoptckrnnmuvjan.supabase.co`). No map API key is

@@ -4,6 +4,21 @@ import type { NotificationRecord, NotificationTemplate, ObservationStatus } from
 const RECENT_LIMIT = 60;
 
 /**
+ * Fires the real push notification (shows up in the phone's notification
+ * tray, even with the app closed) via the send-push Edge Function. This is
+ * best-effort and never throws — a push failure should never block the
+ * in-app notification from being saved, since the bell already covers
+ * anyone with the app open.
+ */
+async function triggerPush(title: string, message: string) {
+  try {
+    await supabase.functions.invoke("send-push", { body: { title, message } });
+  } catch (err) {
+    console.error("Push notification failed to send:", err);
+  }
+}
+
+/**
  * Loads the most recent notifications and stamps each one with whether the
  * given user has already read it. Two queries (not a join) because
  * `notification_reads` only has a row once someone reads something, and we
@@ -12,7 +27,7 @@ const RECENT_LIMIT = 60;
 export async function fetchNotificationsForUser(userId: string): Promise<NotificationRecord[]> {
   const { data: notifications, error } = await supabase
     .from("notifications")
-    .select("*, profiles(full_name, role)")
+   .select("*, profiles!created_by(full_name, role)")
     .order("created_at", { ascending: false })
     .limit(RECENT_LIMIT);
 
@@ -56,15 +71,20 @@ export async function notifyObservationCreated(params: {
   createdBy: string;
 }) {
   const zonePart = params.zoneName ? ` in ${params.zoneName}` : "";
+  const message = `A new observation was added${zonePart}: ${params.title}`;
   const { error } = await supabase.from("notifications").insert({
     type: "observation_created",
     title: "New Observation",
-    message: `A new observation was added${zonePart}: ${params.title}`,
+    message,
     zone_name: params.zoneName,
     observation_id: params.observationId,
     created_by: params.createdBy,
   });
-  if (error) console.error("Failed to send observation-created notification:", error.message);
+  if (error) {
+    console.error("Failed to send observation-created notification:", error.message);
+    return;
+  }
+  triggerPush("New Observation", message);
 }
 
 const STATUS_NOTIFICATION_TEXT: Record<ObservationStatus, string> = {
@@ -82,15 +102,20 @@ export async function notifyStatusChanged(params: {
   actorId: string;
 }) {
   const zonePart = params.zoneName ? ` in ${params.zoneName}` : "";
+  const message = `"${params.title}"${zonePart} ${STATUS_NOTIFICATION_TEXT[params.newStatus]}.`;
   const { error } = await supabase.from("notifications").insert({
     type: "status_changed",
     title: "Observation Update",
-    message: `"${params.title}"${zonePart} ${STATUS_NOTIFICATION_TEXT[params.newStatus]}.`,
+    message,
     zone_name: params.zoneName,
     observation_id: params.observationId,
     created_by: params.actorId,
   });
-  if (error) console.error("Failed to send status-changed notification:", error.message);
+  if (error) {
+    console.error("Failed to send status-changed notification:", error.message);
+    return;
+  }
+  triggerPush("Observation Update", message);
 }
 
 export async function sendAdminBroadcast(params: { title: string; message: string; createdBy: string }) {
@@ -101,6 +126,7 @@ export async function sendAdminBroadcast(params: { title: string; message: strin
     created_by: params.createdBy,
   });
   if (error) throw error;
+  triggerPush(params.title, params.message);
 }
 
 export async function fetchTemplates(): Promise<NotificationTemplate[]> {
