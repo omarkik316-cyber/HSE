@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SettingsProvider } from "@/lib/settings";
-import OneSignalInit from "@/components/OneSignalInit";
 
 export const metadata: Metadata = {
   title: "HSE Observation System",
@@ -34,7 +33,6 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 overscroll-none">
-        <OneSignalInit />
         <SettingsProvider>{children}</SettingsProvider>
       </body>
     </html>

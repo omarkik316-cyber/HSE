@@ -50,15 +50,22 @@ Deno.serve(async (req: Request) => {
     // enabled — every notification type in this app (new observation,
     // status change, admin broadcast) is meant for the whole team, so
     // there's no per-user targeting to do here.
+    //
+    // NOTE: newer OneSignal apps (on the "User Model") use "Total
+    // Subscriptions" as the default all-subscribers segment instead of the
+    // legacy "Subscribed Users" name. Using the wrong name here sends to an
+    // empty/non-existent segment and OneSignal returns
+    // "All included players are not subscribed" even when real devices are
+    // subscribed under the correct segment.
     const oneSignalResponse = await fetch("https://onesignal.com/api/v1/notifications", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Key ${restApiKey}`,
+        Authorization: `Basic ${restApiKey}`,
       },
       body: JSON.stringify({
         app_id: appId,
-       included_segments: ["Total Subscriptions"],
+        included_segments: ["Total Subscriptions"],
         headings: { en: title },
         contents: { en: message },
       }),

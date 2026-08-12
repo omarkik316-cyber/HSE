@@ -22,7 +22,20 @@ async function loadZoneLabels(): Promise<FeatureCollection> {
 export default function MapView({ observations, onMapClick, onPinClick, basemap = "satellite" }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<L.Marker[]>([]);
+  // Keyed by observation id (not a plain array) so pins can be diffed and
+  // updated in place instead of being torn down and rebuilt from scratch on
+  // every fetch. With a project's worth of observations accumulated over
+  // months of use, rebuilding every single marker on every refresh (which
+  // happens after each new observation, status change, etc.) is exactly
+  // what made the map feel heavier the longer the app had been used.
+  const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  const markerSignatureRef = useRef<Map<string, string>>(new Map());
+  // Markers are kept and reused across renders (see the diffing effect
+  // below), so their click handlers can't capture an `obs` object directly
+  // — that would freeze on whatever data existed the moment the pin was
+  // first created. This map always holds the latest observation per id, so
+  // a click always looks up current data instead of a stale snapshot.
+  const obsByIdRef = useRef<Map<string, Observation>>(new Map());
   const zonesRef = useRef<FeatureCollection<Polygon> | null>(null);
   const baseLayerRef = useRef<L.TileLayer | null>(null);
   const labelsLayerRef = useRef<L.TileLayer | null>(null);
@@ -168,6 +181,9 @@ export default function MapView({ observations, onMapClick, onPinClick, basemap 
       resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
+      markersRef.current.clear();
+      markerSignatureRef.current.clear();
+      obsByIdRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -210,63 +226,111 @@ export default function MapView({ observations, onMapClick, onPinClick, basemap 
     }
   }, [basemap, mapReady]);
 
-  // Render / update observation pins whenever the list changes
+  function buildMarkerIcon(obs: Observation): L.DivIcon {
+    const color =
+      obs.status === "closed"
+        ? "#6b7280"
+        : obs.status === "pending_review"
+        ? "#0891b2" // cyan — visually distinct "awaiting review" state
+        : PRIORITY_COLORS[obs.priority as ObservationPriority];
+    const opacity = obs.status === "closed" ? 0.6 : 1;
+    const isConsultantReport = obs.profiles?.role === "consultant";
+
+    // Consultant-raised observations get a distinct look: a blue ring
+    // plus a small "C" badge, so they stand out from Safety Officer
+    // reports at a glance (consultant items must close same-day).
+    // The ticket number is always shown so a specific observation can be
+    // found and referenced at a glance instead of having to open each pin.
+    return L.divIcon({
+      className: "observation-marker",
+      html: `<div style="position:relative;width:26px;height:26px;">
+        <div style="
+          width:26px;height:26px;border-radius:50%;
+          border:${isConsultantReport ? "3px solid #2563eb" : "2px solid white"};
+          box-shadow:0 1px 4px rgba(0,0,0,0.4);
+          background-color:${color};opacity:${opacity};cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          font-size:10px;font-weight:800;color:white;
+          text-shadow:0 1px 1px rgba(0,0,0,0.5);
+        ">#${obs.ticket_no}</div>
+        ${
+          isConsultantReport
+            ? `<div style="
+                position:absolute;top:-6px;right:-6px;
+                width:15px;height:15px;border-radius:50%;
+                background:#2563eb;border:1.5px solid white;
+                display:flex;align-items:center;justify-content:center;
+                font-size:9px;font-weight:800;color:white;
+                box-shadow:0 1px 2px rgba(0,0,0,0.4);
+              ">C</div>`
+            : ""
+        }
+      </div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+    });
+  }
+
+  // Everything that affects how a pin looks or where it sits — if none of
+  // this changed for a given observation, its marker doesn't need to be
+  // touched at all.
+  function markerSignature(obs: Observation): string {
+    return [
+      obs.status,
+      obs.priority,
+      obs.ticket_no,
+      obs.latitude,
+      obs.longitude,
+      obs.profiles?.role === "consultant" ? "c" : "",
+    ].join("|");
+  }
+
+  // Render / update observation pins whenever the list changes. Diffs
+  // against what's already on the map instead of clearing and rebuilding
+  // everything, so a single new/updated observation doesn't cost an
+  // O(n) marker rebuild once the project has hundreds of pins.
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+    const markers = markersRef.current;
+    const signatures = markerSignatureRef.current;
 
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
+    const incomingIds = new Set(observations.map((o) => o.id));
+    obsByIdRef.current = new Map(observations.map((o) => [o.id, o]));
 
-    observations.forEach((obs) => {
-      const color =
-        obs.status === "closed"
-          ? "#6b7280"
-          : obs.status === "pending_review"
-          ? "#0891b2" // cyan — visually distinct "awaiting review" state
-          : PRIORITY_COLORS[obs.priority as ObservationPriority];
-      const opacity = obs.status === "closed" ? 0.6 : 1;
-      const isConsultantReport = obs.profiles?.role === "consultant";
+    // Remove pins for observations no longer in the list (filtered out or
+    // deleted).
+    for (const [id, marker] of markers) {
+      if (!incomingIds.has(id)) {
+        marker.remove();
+        markers.delete(id);
+        signatures.delete(id);
+      }
+    }
 
-      // Consultant-raised observations get a distinct look: a blue ring
-      // plus a small "C" badge, so they stand out from Safety Officer
-      // reports at a glance (consultant items must close same-day).
-      // The ticket number is always shown so a specific observation can be
-      // found and referenced at a glance instead of having to open each pin.
-      const icon = L.divIcon({
-        className: "observation-marker",
-        html: `<div style="position:relative;width:26px;height:26px;">
-          <div style="
-            width:26px;height:26px;border-radius:50%;
-            border:${isConsultantReport ? "3px solid #2563eb" : "2px solid white"};
-            box-shadow:0 1px 4px rgba(0,0,0,0.4);
-            background-color:${color};opacity:${opacity};cursor:pointer;
-            display:flex;align-items:center;justify-content:center;
-            font-size:10px;font-weight:800;color:white;
-            text-shadow:0 1px 1px rgba(0,0,0,0.5);
-          ">#${obs.ticket_no}</div>
-          ${
-            isConsultantReport
-              ? `<div style="
-                  position:absolute;top:-6px;right:-6px;
-                  width:15px;height:15px;border-radius:50%;
-                  background:#2563eb;border:1.5px solid white;
-                  display:flex;align-items:center;justify-content:center;
-                  font-size:9px;font-weight:800;color:white;
-                  box-shadow:0 1px 2px rgba(0,0,0,0.4);
-                ">C</div>`
-              : ""
-          }
-        </div>`,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13],
-      });
+    // Add new pins / update ones whose look actually changed.
+    for (const obs of observations) {
+      const signature = markerSignature(obs);
+      const existing = markers.get(obs.id);
 
-      const marker = L.marker([obs.latitude, obs.longitude], { icon })
-        .addTo(mapRef.current as L.Map)
-        .on("click", () => onPinClickRef.current(obs));
+      if (existing) {
+        if (signatures.get(obs.id) !== signature) {
+          existing.setIcon(buildMarkerIcon(obs));
+          existing.setLatLng([obs.latitude, obs.longitude]);
+          signatures.set(obs.id, signature);
+        }
+        continue;
+      }
 
-      markersRef.current.push(marker);
-    });
+      const marker = L.marker([obs.latitude, obs.longitude], { icon: buildMarkerIcon(obs) })
+        .addTo(map)
+        .on("click", () => {
+          const latest = obsByIdRef.current.get(obs.id);
+          if (latest) onPinClickRef.current(latest);
+        });
+      markers.set(obs.id, marker);
+      signatures.set(obs.id, signature);
+    }
   }, [observations, mapReady]);
 
   return <div ref={mapContainer} className="w-full h-full relative z-0" />;

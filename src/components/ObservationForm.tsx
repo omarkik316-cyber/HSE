@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { notifyObservationCreated } from "@/lib/notifications";
+import { compressImage } from "@/lib/imageCompress";
+import { addPendingObservation, isLikelyNetworkError } from "@/lib/offlineQueue";
 import { CATEGORIES } from "@/types";
 import type { ObservationPriority } from "@/types";
 
@@ -13,6 +15,10 @@ interface ObservationFormProps {
   userId: string;
   onCreated: () => void;
   onCancel: () => void;
+  // Fired instead of a hard failure when the observation couldn't be sent
+  // because of a weak/dropped connection — it's been queued for automatic
+  // retry, not lost. Optional so this component still works without it.
+  onQueued?: (message: string) => void;
 }
 
 function nowForDateTimeLocalInput(): string {
@@ -44,6 +50,7 @@ export default function ObservationForm({
   userId,
   onCreated,
   onCancel,
+  onQueued,
 }: ObservationFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -54,11 +61,20 @@ export default function ObservationForm({
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Brief checkmark overlay shown right after a successful submit, instead
+  // of the panel just vanishing the instant the request resolves.
+  const [showSuccess, setShowSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+
+    // Shrink the photo up front — this both lowers the chance the upload
+    // times out on a weak connection and keeps whatever gets queued (if it
+    // still fails) small enough to sit comfortably in local storage.
+    const uploadPhoto = photoFile ? await compressImage(photoFile) : null;
+    const dueDateISO = dueDate ? new Date(dueDate).toISOString() : null;
 
     try {
       const { data: observation, error: insertError } = await supabase
@@ -74,7 +90,7 @@ export default function ObservationForm({
           zone_name: zoneName,
           reported_by: userId,
           assigned_contractor: assignedContractor || null,
-          due_date: dueDate ? new Date(dueDate).toISOString() : null,
+          due_date: dueDateISO,
         })
         .select()
         .single();
@@ -85,13 +101,13 @@ export default function ObservationForm({
       }
 
       // Upload photo if provided
-      if (photoFile && observation) {
-        const fileExt = photoFile.name.split(".").pop();
+      if (uploadPhoto && observation) {
+        const fileExt = uploadPhoto.name.split(".").pop();
         const filePath = `${observation.id}/before-${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from("observation-photos")
-          .upload(filePath, photoFile);
+          .upload(filePath, uploadPhoto);
 
         if (uploadError) {
           console.error("Photo upload failed:", uploadError);
@@ -122,16 +138,66 @@ export default function ObservationForm({
         });
       }
 
-      onCreated();
+      setSubmitting(false);
+      setShowSuccess(true);
+      // Let the checkmark play for a beat before the panel closes — long
+      // enough to register, short enough not to feel like a delay.
+      setTimeout(onCreated, 650);
     } catch (err) {
+      // A weak/dropped connection shouldn't lose the report or leave the
+      // person stuck on an error screen — queue it and let them keep going,
+      // the same way a chat app holds an unsent message and retries it.
+      if (isLikelyNetworkError(err)) {
+        try {
+          await addPendingObservation({
+            title,
+            description,
+            category,
+            priority,
+            lat,
+            lng,
+            zoneName,
+            userId,
+            assignedContractor: assignedContractor || null,
+            dueDateISO,
+            photo: uploadPhoto,
+          });
+          setSubmitting(false);
+          onQueued?.(
+            "الاتصال ضعيف — تم حفظ الملاحظة على جهازك وسيتم إرسالها تلقائيًا. راجع الإعدادات لمتابعتها."
+          );
+          onCreated();
+          return;
+        } catch (queueErr) {
+          console.error("Failed to queue observation for offline retry:", queueErr);
+          // Fall through to the normal inline error below — at least the
+          // person sees *something* went wrong instead of silence.
+        }
+      }
       setError(explainError(err));
-    } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="h-full flex flex-col bg-white dark:bg-slate-900">
+    <form onSubmit={handleSubmit} className="relative h-full flex flex-col bg-white dark:bg-slate-900">
+      {showSuccess && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/95 dark:bg-slate-900/95 animate-fade-in">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center animate-check-pop">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5 13l4 4L19 7"
+                stroke="#059669"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Observation saved</p>
+        </div>
+      )}
+
       <div className="shrink-0 flex items-start justify-between gap-3 px-5 pt-5 pb-3 pt-safe border-b border-slate-100 dark:border-slate-800">
         <div>
           <h3 className="text-lg font-semibold">New Safety Observation</h3>
@@ -265,8 +331,14 @@ export default function ObservationForm({
         <button
           type="submit"
           disabled={submitting}
-          className="tap flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
+          className="tap flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-70 flex items-center justify-center gap-2"
         >
+          {submitting && (
+            <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="white" strokeOpacity="0.35" strokeWidth="3" />
+              <path d="M21 12a9 9 0 0 0-9-9" stroke="white" strokeWidth="3" strokeLinecap="round" />
+            </svg>
+          )}
           {submitting ? "Saving..." : "Create Observation"}
         </button>
         <button

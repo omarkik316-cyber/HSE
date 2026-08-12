@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useSettings, type BasemapMode, type TextSizeMode, type ThemeMode } from "@/lib/settings";
 import BottomNav from "@/components/BottomNav";
+import PendingUploads from "@/components/PendingUploads";
 import type { Profile } from "@/types";
 import { ROLE_LABELS } from "@/types";
 import type { Session } from "@supabase/supabase-js";
@@ -118,6 +119,8 @@ export default function SettingsPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+        <PendingUploads />
+
         {profile && (
           <SettingsGroup title="Account">
             <div className="px-4 py-4 flex items-center gap-3">

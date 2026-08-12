@@ -11,6 +11,7 @@ import StatsBar from "@/components/StatsBar";
 import FilterBar, { defaultFilters, applyFilters, type Filters } from "@/components/FilterBar";
 import BottomNav from "@/components/BottomNav";
 import NotificationBell from "@/components/NotificationBell";
+import { startAutoSync, subscribeQueue, getPendingObservations } from "@/lib/offlineQueue";
 import type { Observation, Profile } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 
@@ -52,6 +53,9 @@ export default function DashboardPage() {
   // native alert() — alerts on mobile can get dismissed by a stray tap
   // before they're even read, which looks exactly like "nothing happened".
   const [toast, setToast] = useState<string | null>(null);
+  // Count of observations saved locally because the connection was too weak
+  // to send them — shown as a small badge on the Settings entry point.
+  const [pendingCount, setPendingCount] = useState(0);
 
   const filteredObservations = useMemo(
     () => applyFilters(observations, filters),
@@ -106,6 +110,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (session) fetchObservations();
+  }, [session, fetchObservations]);
+
+  // Auto-retry anything sitting in the offline queue (weak-connection
+  // submits) whenever we regain connectivity, plus a periodic sweep. When
+  // an item finally sends successfully it disappears from the queue, so a
+  // refetch here also pulls it onto the map/list without the person having
+  // to do anything.
+  useEffect(() => {
+    startAutoSync();
+    const refresh = () => {
+      getPendingObservations().then((items) => setPendingCount(items.length));
+      if (session) fetchObservations();
+    };
+    refresh();
+    const unsubscribe = subscribeQueue(refresh);
+    return unsubscribe;
   }, [session, fetchObservations]);
 
   const handleMapClick = useCallback(
@@ -194,10 +214,15 @@ export default function DashboardPage() {
           {profile && <NotificationBell profile={profile} onOpenObservation={handleOpenObservationById} />}
           <a
             href="/settings"
-            className="tap w-8 h-8 rounded-full bg-slate-700/70 flex items-center justify-center text-sm font-semibold shrink-0"
+            className="tap relative w-8 h-8 rounded-full bg-slate-700/70 flex items-center justify-center text-sm font-semibold shrink-0"
             aria-label="Settings"
           >
             {profile?.full_name?.[0]?.toUpperCase() ?? "•"}
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                {pendingCount}
+              </span>
+            )}
           </a>
         </div>
       </header>
@@ -290,6 +315,7 @@ export default function DashboardPage() {
                   fetchObservations();
                 }}
                 onCancel={() => setPendingPin(null)}
+                onQueued={setToast}
               />
             )}
             {selectedObs && profile && (
