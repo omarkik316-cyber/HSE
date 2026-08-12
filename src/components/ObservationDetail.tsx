@@ -41,6 +41,9 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
   const [isEditing, setIsEditing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  // Full-screen preview for a tapped photo — thumbnails are only 96x96px,
+  // too small to actually make out details like a harness or a tag number.
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   // Editable field state, seeded from the current observation
   const [editTitle, setEditTitle] = useState(observation.title);
@@ -378,7 +381,13 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
             <div className="flex gap-2 flex-wrap">
               {beforePhotos.map((p) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={p.id} src={p.photo_url} alt="Before" className="w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700" />
+                <img
+                  key={p.id}
+                  src={p.photo_url}
+                  alt="Before"
+                  onClick={() => setLightboxUrl(p.photo_url)}
+                  className="tap w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer"
+                />
               ))}
             </div>
           </div>
@@ -390,7 +399,13 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
             <div className="flex gap-2 flex-wrap">
               {afterPhotos.map((p) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={p.id} src={p.photo_url} alt="After" className="w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700" />
+                <img
+                  key={p.id}
+                  src={p.photo_url}
+                  alt="After"
+                  onClick={() => setLightboxUrl(p.photo_url)}
+                  className="tap w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer"
+                />
               ))}
             </div>
           </div>
@@ -575,6 +590,30 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
           Send
         </button>
       </div>
+
+      {/* Full-screen photo preview — tap the backdrop or the close button
+          to dismiss. Rendered above everything else in the app (z-50). */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center animate-fade-in"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            onClick={() => setLightboxUrl(null)}
+            aria-label="Close"
+            className="tap absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 text-white text-xl leading-none flex items-center justify-center"
+          >
+            ✕
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxUrl}
+            alt="Full size"
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-[92vw] max-h-[85vh] object-contain rounded-lg"
+          />
+        </div>
+      )}
     </div>
   );
 }
