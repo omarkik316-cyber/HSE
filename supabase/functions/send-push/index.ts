@@ -58,7 +58,7 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         app_id: appId,
-        included_segments: ["Subscribed Users"],
+       included_segments: ["Total Subscriptions"],
         headings: { en: title },
         contents: { en: message },
       }),
