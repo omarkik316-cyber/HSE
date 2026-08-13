@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { notifyStatusChanged } from "@/lib/notifications";
+import { compressImage } from "@/lib/imageCompress";
+import { stampPhoto } from "@/lib/photoStamp";
 import { StatusBadge, PriorityBadge } from "./StatusBadge";
 import type { Observation, ObservationStatus, ObservationComment, ObservationPriority } from "@/types";
 import { CATEGORIES } from "@/types";
@@ -11,6 +13,7 @@ import { formatDistanceToNow, format } from "date-fns";
 interface Props {
   observation: Observation;
   userId: string;
+  userName: string;
   userRole: string;
   onClose: () => void;
   onUpdated: () => void;
@@ -33,10 +36,12 @@ const ACTION_LABELS: Record<string, string> = {
 const inputCls =
   "w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm";
 
-export default function ObservationDetail({ observation, userId, userRole, onClose, onUpdated }: Props) {
+export default function ObservationDetail({ observation, userId, userName, userRole, onClose, onUpdated }: Props) {
   const [comments, setComments] = useState<ObservationComment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null);
+  const [afterPhotoPreviewUrl, setAfterPhotoPreviewUrl] = useState<string | null>(null);
+  const [stampingPhoto, setStampingPhoto] = useState(false);
   const [busy, setBusy] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -44,6 +49,35 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
   // Full-screen preview for a tapped photo — thumbnails are only 96x96px,
   // too small to actually make out details like a harness or a tag number.
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const afterCameraInputRef = useRef<HTMLInputElement>(null);
+  const afterGalleryInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (afterPhotoPreviewUrl) URL.revokeObjectURL(afterPhotoPreviewUrl);
+    };
+  }, [afterPhotoPreviewUrl]);
+
+  // Same stamping as the "before" photo on the new-observation form — name,
+  // date/time, and the observation's coordinates baked into the image,
+  // whether it came from the camera or the gallery.
+  async function handleAfterPhotoPicked(file: File | null) {
+    if (!file) return;
+    setStampingPhoto(true);
+    try {
+      const stamped = await stampPhoto(file, {
+        name: userName,
+        lat: observation.latitude,
+        lng: observation.longitude,
+        zoneName: observation.zone_name,
+      });
+      if (afterPhotoPreviewUrl) URL.revokeObjectURL(afterPhotoPreviewUrl);
+      setAfterPhoto(stamped);
+      setAfterPhotoPreviewUrl(URL.createObjectURL(stamped));
+    } finally {
+      setStampingPhoto(false);
+    }
+  }
 
   // Editable field state, seeded from the current observation
   const [editTitle, setEditTitle] = useState(observation.title);
@@ -82,11 +116,12 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
     setBusy(true);
     try {
       if (afterPhoto) {
-        const fileExt = afterPhoto.name.split(".").pop();
+        const compressed = await compressImage(afterPhoto);
+        const fileExt = compressed.name.split(".").pop();
         const filePath = `${observation.id}/after-${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from("observation-photos")
-          .upload(filePath, afterPhoto);
+          .upload(filePath, compressed);
         if (!uploadError) {
           const { data: publicUrl } = supabase.storage
             .from("observation-photos")
@@ -439,20 +474,75 @@ export default function ObservationDetail({ observation, userId, userRole, onClo
                         acting as admin.
                       </p>
                     )}
-                    <label htmlFor="after-photo" className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
                       Correction photo
                     </label>
                     <input
-                      id="after-photo"
-                      name="after_photo"
+                      ref={afterCameraInputRef}
+                      id="after-photo-camera"
+                      name="after_photo_camera"
                       type="file"
                       accept="image/*"
                       capture="environment"
-                      onChange={(e) => setAfterPhoto(e.target.files?.[0] ?? null)}
-                      className="w-full text-sm mb-2"
+                      onChange={(e) => {
+                        handleAfterPhotoPicked(e.target.files?.[0] ?? null);
+                        e.target.value = "";
+                      }}
+                      className="hidden"
                     />
+                    <input
+                      ref={afterGalleryInputRef}
+                      id="after-photo-gallery"
+                      name="after_photo_gallery"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        handleAfterPhotoPicked(e.target.files?.[0] ?? null);
+                        e.target.value = "";
+                      }}
+                      className="hidden"
+                    />
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => afterCameraInputRef.current?.click()}
+                        className="tap flex-1 border border-slate-200 dark:border-slate-700 rounded-xl py-2 text-xs font-medium flex items-center justify-center gap-1"
+                      >
+                        📷 Take Photo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => afterGalleryInputRef.current?.click()}
+                        className="tap flex-1 border border-slate-200 dark:border-slate-700 rounded-xl py-2 text-xs font-medium flex items-center justify-center gap-1"
+                      >
+                        🖼️ From Gallery
+                      </button>
+                    </div>
+                    {stampingPhoto && <p className="text-xs text-slate-400 mb-2">Stamping photo...</p>}
+                    {!stampingPhoto && afterPhotoPreviewUrl && (
+                      <div className="mb-2 relative inline-block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={afterPhotoPreviewUrl}
+                          alt="Correction photo preview"
+                          className="w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (afterPhotoPreviewUrl) URL.revokeObjectURL(afterPhotoPreviewUrl);
+                            setAfterPhoto(null);
+                            setAfterPhotoPreviewUrl(null);
+                          }}
+                          aria-label="Remove photo"
+                          className="tap absolute -top-2 -right-2 w-6 h-6 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center shadow"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                     <button
-                      disabled={busy}
+                      disabled={busy || stampingPhoto}
                       onClick={submitForReview}
                       className="tap w-full bg-cyan-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
                     >

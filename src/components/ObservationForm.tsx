@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { notifyObservationCreated } from "@/lib/notifications";
 import { compressImage } from "@/lib/imageCompress";
+import { stampPhoto } from "@/lib/photoStamp";
 import { addPendingObservation, isLikelyNetworkError } from "@/lib/offlineQueue";
 import { CATEGORIES } from "@/types";
 import type { ObservationPriority } from "@/types";
@@ -13,6 +14,7 @@ interface ObservationFormProps {
   lat: number;
   zoneName: string | null;
   userId: string;
+  userName: string;
   onCreated: () => void;
   onCancel: () => void;
   // Fired instead of a hard failure when the observation couldn't be sent
@@ -48,6 +50,7 @@ export default function ObservationForm({
   lat,
   zoneName,
   userId,
+  userName,
   onCreated,
   onCancel,
   onQueued,
@@ -59,11 +62,38 @@ export default function ObservationForm({
   const [assignedContractor, setAssignedContractor] = useState("");
   const [dueDate, setDueDate] = useState(nowForDateTimeLocalInput);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [stampingPhoto, setStampingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Brief checkmark overlay shown right after a successful submit, instead
   // of the panel just vanishing the instant the request resolves.
   const [showSuccess, setShowSuccess] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  // Object URLs need explicit cleanup or they leak for the life of the page.
+  useEffect(() => {
+    return () => {
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    };
+  }, [photoPreviewUrl]);
+
+  // Stamps the name/date/coordinates onto the photo the moment it's picked
+  // — whether it came from the camera or the gallery — so what the person
+  // sees in the preview is exactly what gets uploaded.
+  async function handlePhotoPicked(file: File | null) {
+    if (!file) return;
+    setStampingPhoto(true);
+    try {
+      const stamped = await stampPhoto(file, { name: userName, lat, lng, zoneName });
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+      setPhotoFile(stamped);
+      setPhotoPreviewUrl(URL.createObjectURL(stamped));
+    } finally {
+      setStampingPhoto(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -308,16 +338,74 @@ export default function ObservationForm({
         </div>
 
         <div>
-          <label htmlFor="obs-photo" className="block text-sm font-medium mb-1">Photo</label>
-          <input
-            id="obs-photo"
-            name="photo"
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-            className="w-full text-sm"
-          />
+          <label className="block text-sm font-medium mb-1">Photo</label>
+          <div className="flex gap-2">
+            <input
+              ref={cameraInputRef}
+              id="obs-photo-camera"
+              name="photo_camera"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => {
+                handlePhotoPicked(e.target.files?.[0] ?? null);
+                e.target.value = "";
+              }}
+              className="hidden"
+            />
+            <input
+              ref={galleryInputRef}
+              id="obs-photo-gallery"
+              name="photo_gallery"
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                handlePhotoPicked(e.target.files?.[0] ?? null);
+                e.target.value = "";
+              }}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="tap flex-1 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5"
+            >
+              📷 Take Photo
+            </button>
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              className="tap flex-1 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5"
+            >
+              🖼️ From Gallery
+            </button>
+          </div>
+
+          {stampingPhoto && (
+            <p className="text-xs text-slate-400 mt-2">Stamping photo...</p>
+          )}
+          {!stampingPhoto && photoPreviewUrl && (
+            <div className="mt-2 relative inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photoPreviewUrl}
+                alt="Selected photo preview"
+                className="w-28 h-28 object-cover rounded-xl border border-slate-200 dark:border-slate-700"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+                  setPhotoFile(null);
+                  setPhotoPreviewUrl(null);
+                }}
+                aria-label="Remove photo"
+                className="tap absolute -top-2 -right-2 w-6 h-6 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center shadow"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -330,7 +418,7 @@ export default function ObservationForm({
       <div className="shrink-0 flex gap-2 px-5 pt-3 pb-safe border-t border-slate-100 dark:border-slate-800 mb-4">
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || stampingPhoto}
           className="tap flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-70 flex items-center justify-center gap-2"
         >
           {submitting && (

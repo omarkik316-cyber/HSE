@@ -310,6 +310,7 @@ export default function DashboardPage() {
                 lat={pendingPin.lat}
                 zoneName={pendingPin.zoneName}
                 userId={profile.id}
+                userName={profile.full_name}
                 onCreated={() => {
                   setPendingPin(null);
                   fetchObservations();
@@ -322,6 +323,7 @@ export default function DashboardPage() {
               <ObservationDetail
                 observation={selectedObs}
                 userId={profile.id}
+                userName={profile.full_name}
                 userRole={profile.role}
                 onClose={() => setSelectedObs(null)}
                 onUpdated={() => {
