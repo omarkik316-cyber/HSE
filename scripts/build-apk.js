@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 // Produces a fully static export of the site (in `out/`) for bundling
 // straight into the Android app's assets, so the app shell can open with
-// zero network on first launch.
+// zero network on first launch — this is the *guaranteed* offline path,
+// independent of whatever the site's own Service Worker manages to do
+// inside WebView (Android WebView has real, documented reliability gaps
+// with Service Workers surviving app restarts, so it's used here only as
+// a bonus for browser/desktop PWA installs, not relied on for the APK).
 //
 // Next.js refuses to build at all if `middleware.ts` exists alongside
 // `output: "export"` ("Middleware cannot be used with output: export").
