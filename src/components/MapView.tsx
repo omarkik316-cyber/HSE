@@ -241,9 +241,17 @@ export default function MapView({ observations, onMapClick, onPinClick, basemap 
     // reports at a glance (consultant items must close same-day).
     // The ticket number is always shown so a specific observation can be
     // found and referenced at a glance instead of having to open each pin.
+    const isInProgress = obs.status === "in_progress";
+
     return L.divIcon({
       className: "observation-marker",
-      html: `<div style="position:relative;width:26px;height:26px;">
+      html: `<div style="position:relative;width:26px;height:26px;overflow:visible;">
+        ${
+          isInProgress
+            ? `<div class="pulse-ring" style="border:2px solid ${color};"></div>
+               <div class="pulse-ring" style="border:2px solid ${color};animation-delay:0.85s;"></div>`
+            : ""
+        }
         <div style="
           width:26px;height:26px;border-radius:50%;
           border:${isConsultantReport ? "3px solid #2563eb" : "2px solid white"};

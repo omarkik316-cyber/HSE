@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { notifyStatusChanged } from "@/lib/notifications";
 import { compressImage } from "@/lib/imageCompress";
 import { stampPhoto } from "@/lib/photoStamp";
+import { isObservationOverdue } from "@/lib/overdue";
 import { StatusBadge, PriorityBadge } from "./StatusBadge";
 import type { Observation, ObservationStatus, ObservationComment, ObservationPriority } from "@/types";
 import { CATEGORIES } from "@/types";
@@ -237,10 +238,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
   const beforePhotos = observation.observation_photos?.filter((p) => p.photo_type === "before") ?? [];
   const afterPhotos = observation.observation_photos?.filter((p) => p.photo_type === "after") ?? [];
 
-  const isOverdue =
-    observation.status !== "closed" &&
-    observation.due_date &&
-    new Date(observation.due_date) < new Date();
+  const isOverdue = isObservationOverdue(observation);
 
   if (isEditing) {
     return (
