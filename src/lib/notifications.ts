@@ -27,7 +27,7 @@ async function triggerPush(title: string, message: string) {
 export async function fetchNotificationsForUser(userId: string): Promise<NotificationRecord[]> {
   const { data: notifications, error } = await supabase
     .from("notifications")
-    .select("*, profiles(full_name, role)")
+    .select("*, profiles!notifications_created_by_fkey(full_name, role)")
     .order("created_at", { ascending: false })
     .limit(RECENT_LIMIT);
 
