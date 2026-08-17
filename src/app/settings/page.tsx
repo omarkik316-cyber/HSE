@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useSettings, type BasemapMode, type TextSizeMode, type ThemeMode } from "@/lib/settings";
@@ -9,13 +9,6 @@ import PendingUploads from "@/components/PendingUploads";
 import type { Profile } from "@/types";
 import { ROLE_LABELS } from "@/types";
 import type { Session } from "@supabase/supabase-js";
-import {
-  estimateOfflineDownload,
-  downloadOfflineMap,
-  getOfflineCacheInfo,
-  clearOfflineMap,
-  type OfflineDownloadProgress,
-} from "@/lib/offlineMap";
 
 function SegmentedControl<T extends string>({
   value,
@@ -83,49 +76,6 @@ export default function SettingsPage() {
   const { theme, setTheme, basemap, setBasemap, textSize, setTextSize } = useSettings();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-
-  const [cachedTiles, setCachedTiles] = useState<number | null>(null);
-  const [estimate, setEstimate] = useState<{ tileCount: number; approxMB: number } | null>(null);
-  const [downloading, setDownloading] = useState(false);
-  const [progress, setProgress] = useState<OfflineDownloadProgress | null>(null);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
-  function refreshCacheInfo() {
-    getOfflineCacheInfo().then((info) => setCachedTiles(info?.tileCount ?? null));
-  }
-
-  useEffect(() => {
-    refreshCacheInfo();
-    estimateOfflineDownload().then(setEstimate);
-  }, []);
-
-  async function handleDownload() {
-    setDownloading(true);
-    setDownloadError(null);
-    setProgress({ done: 0, total: estimate?.tileCount ?? 0, failed: 0 });
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      await downloadOfflineMap((p) => setProgress(p), controller.signal);
-      refreshCacheInfo();
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : "Download failed");
-    } finally {
-      setDownloading(false);
-      abortRef.current = null;
-    }
-  }
-
-  function handleCancelDownload() {
-    abortRef.current?.abort();
-    setDownloading(false);
-  }
-
-  async function handleClearOffline() {
-    await clearOfflineMap();
-    refreshCacheInfo();
-  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -237,69 +187,6 @@ export default function SettingsPage() {
               />
             }
           />
-        </SettingsGroup>
-
-        <SettingsGroup title="Offline Map">
-          <div className="px-4 py-3.5 space-y-3">
-            <div>
-              <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                Download project area for offline use
-              </p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                {cachedTiles && cachedTiles > 0
-                  ? `${cachedTiles.toLocaleString()} map tiles saved on this device — the map will keep working with no signal.`
-                  : "Not downloaded yet — the map needs a connection until you download it."}
-              </p>
-              {estimate && !downloading && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                  ~{estimate.tileCount.toLocaleString()} tiles, approx. {estimate.approxMB} MB. Use Wi-Fi.
-                </p>
-              )}
-            </div>
-
-            {downloading && progress && (
-              <div className="space-y-1.5">
-                <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full bg-blue-600 transition-all"
-                    style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                  {progress.done.toLocaleString()} / {progress.total.toLocaleString()} tiles
-                  {progress.failed > 0 ? ` · ${progress.failed} failed (will retry next time)` : ""}
-                </p>
-              </div>
-            )}
-
-            {downloadError && <p className="text-xs text-red-600 dark:text-red-400">{downloadError}</p>}
-
-            <div className="flex gap-2">
-              {downloading ? (
-                <button
-                  onClick={handleCancelDownload}
-                  className="tap flex-1 text-xs font-semibold py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-                >
-                  Cancel
-                </button>
-              ) : (
-                <button
-                  onClick={handleDownload}
-                  className="tap flex-1 text-xs font-semibold py-2.5 rounded-xl bg-blue-600 text-white"
-                >
-                  {cachedTiles && cachedTiles > 0 ? "Re-download / Update" : "Download for offline"}
-                </button>
-              )}
-              {!downloading && cachedTiles !== null && cachedTiles > 0 && (
-                <button
-                  onClick={handleClearOffline}
-                  className="tap text-xs font-semibold py-2.5 px-3 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
         </SettingsGroup>
 
         <SettingsGroup>

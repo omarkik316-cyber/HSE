@@ -1,4 +1,4 @@
-export type UserRole = "safety_officer" | "consultant" | "contractor" | "manager" | "admin";
+export type UserRole = "safety_officer" | "consultant" | "contractor" | "admin";
 export type ObservationStatus = "open" | "in_progress" | "pending_review" | "closed";
 export type ObservationPriority = "low" | "medium" | "high" | "critical";
 
@@ -132,7 +132,6 @@ export function getZoneColor(zoneName: string | null | undefined): string {
 // but everywhere in the UI it's shown as "Safety Officer / Contractor".
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
-  manager: "Manager",
   consultant: "Consultant",
   safety_officer: "Safety Officer",
   contractor: "Safety Officer / Contractor",

@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { notifyStatusChanged } from "@/lib/notifications";
 import { compressImage } from "@/lib/imageCompress";
 import { stampPhoto } from "@/lib/photoStamp";
-import { isObservationOverdue } from "@/lib/overdue";
 import { StatusBadge, PriorityBadge } from "./StatusBadge";
 import type { Observation, ObservationStatus, ObservationComment, ObservationPriority } from "@/types";
 import { CATEGORIES } from "@/types";
@@ -108,25 +107,6 @@ export default function ObservationDetail({ observation, userId, userName, userR
   const canWorkOn = userRole === "safety_officer" || userRole === "admin" || userRole === "contractor";
   const canEditDetails = userRole === "safety_officer" || userRole === "admin";
   const canReview = userRole === "admin";
-  // Full, permanent delete (not a status change) — reserved for admin and
-  // manager, the two roles trusted to remove a bad/duplicate report entirely.
-  const canDelete = userRole === "admin" || userRole === "manager";
-  const [deleting, setDeleting] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
-
-  async function handleDelete() {
-    setDeleting(true);
-    try {
-      const { error } = await supabase.from("observations").delete().eq("id", observation.id);
-      if (error) throw error;
-      onUpdated();
-      onClose();
-    } catch (err) {
-      console.error("Failed to delete observation:", err);
-      setDeleting(false);
-      setConfirmingDelete(false);
-    }
-  }
 
   async function changeStatus(
     newStatus: ObservationStatus,
@@ -257,7 +237,10 @@ export default function ObservationDetail({ observation, userId, userName, userR
   const beforePhotos = observation.observation_photos?.filter((p) => p.photo_type === "before") ?? [];
   const afterPhotos = observation.observation_photos?.filter((p) => p.photo_type === "after") ?? [];
 
-  const isOverdue = isObservationOverdue(observation);
+  const isOverdue =
+    observation.status !== "closed" &&
+    observation.due_date &&
+    new Date(observation.due_date) < new Date();
 
   if (isEditing) {
     return (
@@ -389,41 +372,9 @@ export default function ObservationDetail({ observation, userId, userName, userR
               Edit
             </button>
           )}
-          {canDelete && (
-            <button
-              onClick={() => setConfirmingDelete(true)}
-              className="tap text-xs px-2 py-1 border border-red-200 dark:border-red-900 rounded-lg text-red-600 dark:text-red-400"
-            >
-              Delete
-            </button>
-          )}
           <button onClick={onClose} className="tap text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 text-xl leading-none px-1">✕</button>
         </div>
       </div>
-
-      {confirmingDelete && (
-        <div className="shrink-0 px-5 py-3 bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-900 flex items-center justify-between gap-3">
-          <p className="text-xs text-red-700 dark:text-red-300">
-            Delete this observation permanently? This removes its photos and comments too — it can&apos;t be undone.
-          </p>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={() => setConfirmingDelete(false)}
-              disabled={deleting}
-              className="tap text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="tap text-xs px-2.5 py-1.5 rounded-lg bg-red-600 text-white font-semibold disabled:opacity-60"
-            >
-              {deleting ? "Deleting…" : "Delete"}
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
         <div className="flex gap-2 flex-wrap">

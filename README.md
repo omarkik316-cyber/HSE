@@ -16,6 +16,27 @@ was generated from your uploaded KML (67 zones across Phase 2, 3, 4, 5).
   sessions stay refreshed and cookie-synced across the App Router
 - **Zone detection:** Turf.js point-in-polygon (auto-tags every observation
   with the zone it was clicked in)
+- **Offline app shell:** `@ducanh2912/next-pwa` (a service worker) — see
+  "Offline support" below
+
+## Offline support (works inside the Android app without internet)
+The site registers a service worker in production builds. The first time
+someone opens the site (or the Android app, which just wraps this same site
+in a WebView) *with* a connection, the service worker downloads and caches
+every page and all static assets in the background. From then on, navigating
+between pages (map, settings, stats, admin) works even with **no internet at
+all** — only live data (login, fetching/creating observations, photos)
+still needs an actual connection, same as any app talking to a database.
+
+This needs zero manual steps — it's part of the normal `npm run build` /
+Vercel deploy, and updates itself automatically the next time the person is
+online after you ship a change. Nothing to configure in the Android project
+either.
+
+To test it locally: `npm run build && npm run start` (the service worker is
+disabled in `npm run dev` on purpose — much easier to debug without a cache
+fighting you), open the site, then turn off your Wi-Fi and reload / navigate
+around.
 
 ## ⚠️ Not build-verified
 This project was generated in a sandboxed environment with no internet

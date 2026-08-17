@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import type { Observation, ObservationPriority } from "@/types";
 import { StatusBadge, PriorityBadge } from "./StatusBadge";
 import { formatDistanceToNow } from "date-fns";
-import { isObservationOverdue } from "@/lib/overdue";
 
 interface ObservationsListProps {
   observations: Observation[];
@@ -64,7 +63,8 @@ export default function ObservationsList({ observations, onSelect }: Observation
       ) : (
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
           {sorted.map((obs) => {
-            const isOverdue = isObservationOverdue(obs);
+            const isOverdue =
+              obs.status !== "closed" && obs.due_date && new Date(obs.due_date) < new Date();
             const isConsultantReport = obs.profiles?.role === "consultant";
 
             return (

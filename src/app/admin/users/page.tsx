@@ -7,7 +7,7 @@ import { ROLE_LABELS } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 import BottomNav from "@/components/BottomNav";
 
-const ROLES: UserRole[] = ["safety_officer", "consultant", "contractor", "manager", "admin"];
+const ROLES: UserRole[] = ["safety_officer", "consultant", "contractor", "admin"];
 
 interface Draft {
   role: UserRole;
