@@ -1,13 +1,12 @@
 import type { Observation } from "@/types";
+import { isObservationOverdue } from "@/lib/overdue";
 
 export default function StatsBar({ observations }: { observations: Observation[] }) {
   const open = observations.filter((o) => o.status === "open").length;
   const inProgress = observations.filter((o) => o.status === "in_progress").length;
   const pendingReview = observations.filter((o) => o.status === "pending_review").length;
   const closed = observations.filter((o) => o.status === "closed").length;
-  const overdue = observations.filter(
-    (o) => o.status !== "closed" && o.due_date && new Date(o.due_date) < new Date()
-  ).length;
+  const overdue = observations.filter(isObservationOverdue).length;
   const critical = observations.filter(
     (o) => o.status !== "closed" && o.priority === "critical"
   ).length;

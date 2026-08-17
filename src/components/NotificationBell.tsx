@@ -78,10 +78,10 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
   }
 
   async function handleTapNotification(n: NotificationRecord) {
-    if (!n.read) {
-      setNotifications((cur) => cur.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
-      markNotificationRead(n.id, profile.id);
-    }
+    // Opening a notification marks it read AND removes it from this
+    // user's feed — reading is the delete action here.
+    setNotifications((cur) => cur.filter((x) => x.id !== n.id));
+    markNotificationRead(n.id, profile.id);
     if (n.observation_id && onOpenObservation) {
       onOpenObservation(n.observation_id);
       setOpen(false);
@@ -89,8 +89,8 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
   }
 
   async function handleMarkAllRead() {
-    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
-    setNotifications((cur) => cur.map((x) => ({ ...x, read: true })));
+    const unreadIds = notifications.map((n) => n.id);
+    setNotifications([]);
     await markAllNotificationsRead(unreadIds, profile.id);
   }
 
@@ -206,7 +206,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                 {unreadCount > 0 && (
                   <div className="px-5 py-1.5">
                     <button onClick={handleMarkAllRead} className="tap text-xs text-slate-500 dark:text-slate-400 underline">
-                      Mark all as read
+                      Clear all
                     </button>
                   </div>
                 )}

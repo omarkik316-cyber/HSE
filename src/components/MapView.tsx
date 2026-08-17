@@ -157,17 +157,26 @@ export default function MapView({ observations, onMapClick, onPinClick, basemap 
       if (cancelled) return;
       L.geoJSON(labels, {
         pointToLayer: (feature, latlng) => {
-          const name = feature.properties?.name ?? "";
+          const name: string = feature.properties?.name ?? "";
+          // Short codes ("3I", "4M") are zone/plot labels; anything longer
+          // ("PHASE 5", "GATE 4", "WADI") is a landmark/section label and
+          // reads better a size up.
+          const isLandmark = name.replace(/\s/g, "").length > 3;
           const icon = L.divIcon({
             className: "zone-label",
             html: `<div style="
-              font-size:16px;font-weight:800;color:#0b2559;
-              background:rgba(255,255,255,0.92);
-              padding:2px 7px;border-radius:5px;
+              font-size:${isLandmark ? 14 : 12.5}px;
+              font-weight:${isLandmark ? 800 : 700};
+              color:#fff;
               white-space:nowrap;pointer-events:none;
-              box-shadow:0 1px 3px rgba(0,0,0,0.35);
               transform:translate(-50%,-50%);
-              letter-spacing:0.3px;
+              letter-spacing:0.4px;
+              text-shadow:
+                -1px -1px 1.5px rgba(0,0,0,0.9),
+                1px -1px 1.5px rgba(0,0,0,0.9),
+                -1px 1px 1.5px rgba(0,0,0,0.9),
+                1px 1px 1.5px rgba(0,0,0,0.9),
+                0 0 6px rgba(0,0,0,0.55);
             ">${name}</div>`,
             iconSize: [0, 0],
           });
@@ -241,9 +250,17 @@ export default function MapView({ observations, onMapClick, onPinClick, basemap 
     // reports at a glance (consultant items must close same-day).
     // The ticket number is always shown so a specific observation can be
     // found and referenced at a glance instead of having to open each pin.
+    const isInProgress = obs.status === "in_progress";
+
     return L.divIcon({
       className: "observation-marker",
-      html: `<div style="position:relative;width:26px;height:26px;">
+      html: `<div style="position:relative;width:26px;height:26px;overflow:visible;">
+        ${
+          isInProgress
+            ? `<div class="pulse-ring" style="border:2px solid ${color};"></div>
+               <div class="pulse-ring" style="border:2px solid ${color};animation-delay:0.85s;"></div>`
+            : ""
+        }
         <div style="
           width:26px;height:26px;border-radius:50%;
           border:${isConsultantReport ? "3px solid #2563eb" : "2px solid white"};

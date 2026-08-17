@@ -27,7 +27,7 @@ async function triggerPush(title: string, message: string) {
 export async function fetchNotificationsForUser(userId: string): Promise<NotificationRecord[]> {
   const { data: notifications, error } = await supabase
     .from("notifications")
-    .select("*, profiles(full_name, role)")
+    .select("*, profiles!notifications_created_by_fkey(full_name, role)")
     .order("created_at", { ascending: false })
     .limit(RECENT_LIMIT);
 
@@ -41,9 +41,15 @@ export async function fetchNotificationsForUser(userId: string): Promise<Notific
     .select("notification_id")
     .eq("user_id", userId);
 
+  // A read marker means "this user is done with it" — treat it as deleted
+  // from their feed rather than just visually dimmed. The underlying row
+  // stays in `notifications` (it's a shared broadcast other users still
+  // need to see) but this user never sees it again once opened.
   const readIds = new Set((reads ?? []).map((r) => r.notification_id));
 
-  return (notifications ?? []).map((n) => ({ ...n, read: readIds.has(n.id) }));
+  return (notifications ?? [])
+    .filter((n) => !readIds.has(n.id))
+    .map((n) => ({ ...n, read: false }));
 }
 
 export async function markNotificationRead(notificationId: string, userId: string) {
