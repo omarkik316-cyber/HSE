@@ -62,7 +62,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 const nextConfig = {
   // The Android build is a completely self-contained static export.  The
   // normal Vercel build keeps its existing server/middleware behaviour.
-  ...(isAndroidOffline ? { output: "export", trailingSlash: true, assetPrefix: "." } : {}),
+...(isAndroidOffline ? { output: "export", trailingSlash: true } : {}),
   images: {
     unoptimized: isAndroidOffline,
     remotePatterns: [
