@@ -16,6 +16,7 @@ import {
   clearOfflineMap,
   type OfflineDownloadProgress,
 } from "@/lib/offlineMap";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 
 function SegmentedControl<T extends string>({
   value,
@@ -81,6 +82,7 @@ function SettingsRow({
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme, basemap, setBasemap, textSize, setTextSize } = useSettings();
+  const isOnline = useOnlineStatus();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -101,6 +103,7 @@ export default function SettingsPage() {
   }, []);
 
   async function handleDownload() {
+    if (!isOnline) return;
     setDownloading(true);
     setDownloadError(null);
     setProgress({ done: 0, total: estimate?.tileCount ?? 0, failed: 0 });
@@ -247,8 +250,8 @@ export default function SettingsPage() {
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                 {cachedTiles && cachedTiles > 0
-                  ? `${cachedTiles.toLocaleString()} map tiles saved on this device — the map will keep working with no signal.`
-                  : "Not downloaded yet — the map needs a connection until you download it."}
+                  ? `${cachedTiles.toLocaleString()} map tiles saved on this device — the map keeps working with zero signal.`
+                  : "Not downloaded yet — download once on Wi-Fi, then the map works fully offline from then on."}
               </p>
               {estimate && !downloading && (
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
@@ -285,7 +288,8 @@ export default function SettingsPage() {
               ) : (
                 <button
                   onClick={handleDownload}
-                  className="tap flex-1 text-xs font-semibold py-2.5 rounded-xl bg-blue-600 text-white"
+                  disabled={!isOnline}
+                  className="tap flex-1 text-xs font-semibold py-2.5 rounded-xl bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white"
                 >
                   {cachedTiles && cachedTiles > 0 ? "Re-download / Update" : "Download for offline"}
                 </button>
@@ -299,6 +303,17 @@ export default function SettingsPage() {
                 </button>
               )}
             </div>
+
+            {/* This is the one moment offline genuinely blocks something —
+                there's no map data to fetch yet. Everywhere else (creating
+                observations, browsing an already-downloaded map) keeps
+                working with no connection at all, which is exactly the
+                point of this feature. */}
+            {!isOnline && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                يحتاج التحميل الأول اتصال بالنت — وصّلها بشبكة قوية وحمّل الخريطة قبل ما تنزل الموقع.
+              </p>
+            )}
           </div>
         </SettingsGroup>
 

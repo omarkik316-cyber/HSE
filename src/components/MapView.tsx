@@ -126,7 +126,7 @@ export default function MapView({ observations, onMapClick, onPinClick, basemap 
       if (cancelled) return;
       zonesRef.current = zones;
 
-      L.geoJSON(zones, {
+      const zonesLayer = L.geoJSON(zones, {
         // interactive:false is the key fix — without it, the zone polygons
         // (which cover entire buildings) swallow clicks meant for the map,
         // which is exactly why tapping on a building stopped opening the
@@ -146,6 +146,24 @@ export default function MapView({ observations, onMapClick, onPinClick, basemap 
           };
         },
       }).addTo(map);
+
+      // Keep the map scoped to the work site itself — frame it on first
+      // load, don't allow panning far past its edges, and don't allow
+      // zooming out past the point where the whole site fits on screen.
+      // There's no reason to browse (or, via the offline tile cache,
+      // download) map area outside the project boundary.
+      try {
+        const siteBounds = zonesLayer.getBounds();
+        if (siteBounds.isValid()) {
+          const padded = siteBounds.pad(0.25);
+          map.fitBounds(siteBounds, { maxZoom: 17 });
+          map.setMaxBounds(padded);
+          map.setMinZoom(map.getBoundsZoom(padded));
+        }
+      } catch {
+        // If bounds can't be computed for some reason, just leave the map
+        // at its default center/zoom instead of failing the whole load.
+      }
 
       setMapReady(true);
     });

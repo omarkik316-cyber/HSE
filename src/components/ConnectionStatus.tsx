@@ -73,18 +73,32 @@ function useConnectionQuality(): Quality {
   return quality;
 }
 
-const CONFIG: Record<Exclude<Quality, "checking">, { label: string; dot: string; bg: string }> = {
-  strong: { label: "Online", dot: "bg-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" },
-  weak: { label: "Weak connection", dot: "bg-amber-500", bg: "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300" },
-  offline: { label: "No connection", dot: "bg-red-500", bg: "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300" },
+// "offline" used to read as a flat "No connection" — which, on an app
+// that's specifically built to keep working with no signal (offline
+// observation queue, offline map tiles), reads as an error even when
+// nothing is actually broken. It's phrased here as a mode the app
+// supports, not a failure, and "weak" gets an equally calm treatment.
+// "strong" isn't rendered at all — a banner with nothing actionable to
+// say is just noise once the connection is fine.
+const CONFIG: Record<Exclude<Quality, "checking" | "strong">, { label: string; dot: string; bg: string }> = {
+  weak: {
+    label: "اتصال ضعيف — قد تتأخر بعض العمليات",
+    dot: "bg-amber-500",
+    bg: "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+  },
+  offline: {
+    label: "غير متصل — تقدر تواصل العمل وسيتم الحفظ والإرسال تلقائيًا",
+    dot: "bg-slate-400",
+    bg: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
+  },
 };
 
 export default function ConnectionStatus() {
   const quality = useConnectionQuality();
 
-  // Nothing to show yet on the very first render (still running the first
-  // check).
-  if (quality === "checking") return null;
+  // Nothing to show for "checking" (first render) or "strong" (nothing
+  // actionable to say) — the banner only appears when it's worth reading.
+  if (quality === "checking" || quality === "strong") return null;
 
   const { label, dot, bg } = CONFIG[quality];
 
