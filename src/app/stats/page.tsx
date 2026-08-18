@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { cacheProfile, getCachedProfile, cacheObservations, getCachedObservations } from "@/lib/localCache";
 import type { Observation, Profile, ObservationPriority } from "@/types";
 import { ROLE_LABELS } from "@/types";
 import type { Session } from "@supabase/supabase-js";
@@ -114,26 +115,45 @@ export default function StatsPage() {
 
   useEffect(() => {
     if (!session?.user) return;
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .single()
-      .then(({ data }) => setProfile(data));
+    const userId = session.user.id;
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+        if (error) throw error;
+        setProfile(data);
+        cacheProfile(data);
+      } catch {
+        const cached = getCachedProfile(userId);
+        if (cached) setProfile(cached);
+      }
+    })();
   }, [session]);
 
   useEffect(() => {
     if (!session) return;
     setLoading(true);
-    supabase
-      .from("observations")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) console.error("Failed to load observations for stats:", error.message);
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("observations")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (error) throw error;
         setObservations(data ?? []);
+        cacheObservations(data ?? []);
+      } catch (err) {
+        // Offline, most likely — this used to leave the page stuck on
+        // "Loading..." forever, since nothing ever called setLoading(false)
+        // if the fetch itself failed rather than resolving with an error.
+        // Falling back to the last cached observations means the charts
+        // still render (from slightly stale data) with zero signal.
+        console.error("Failed to load observations for stats:", err);
+        const cached = getCachedObservations();
+        if (cached.length > 0) setObservations(cached);
+      } finally {
         setLoading(false);
-      });
+      }
+    })();
   }, [session]);
 
   const { thisWeek, lastWeek } = useMemo(() => getWeekWindows(), []);

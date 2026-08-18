@@ -8,12 +8,14 @@ const TILE_URL_TEMPLATES = [
   "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
 ];
 
-// z18 already resolves individual buildings; z19+ multiplies the tile
-// count ~4x for detail that isn't needed to confirm which structure an
-// observation pin sits on, so the range stops at 18 to keep the download
-// a reasonable size for a phone on a site with patchy signal.
+// z18 already resolves individual buildings; every extra zoom level roughly
+// quadruples the tile count (z18 alone was ~3,350 tiles — most of a
+// 9,000+ tile download on its own), which is exactly what made "Download
+// for offline" slow and heavy on a weak connection. z17 still resolves
+// individual structures clearly enough to place an observation pin
+// correctly, at a quarter of the size.
 const MIN_ZOOM = 13;
-const MAX_ZOOM = 18;
+const MAX_ZOOM = 17;
 
 interface TileCoord {
   z: number;

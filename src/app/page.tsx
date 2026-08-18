@@ -12,6 +12,7 @@ import FilterBar, { defaultFilters, applyFilters, type Filters } from "@/compone
 import BottomNav from "@/components/BottomNav";
 import NotificationBell from "@/components/NotificationBell";
 import { startAutoSync, subscribeQueue, getPendingObservations } from "@/lib/offlineQueue";
+import { cacheProfile, getCachedProfile, cacheObservations, getCachedObservations } from "@/lib/localCache";
 import type { Observation, Profile } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 
@@ -77,35 +78,55 @@ export default function DashboardPage() {
       return;
     }
     setProfileLoading(true);
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .single()
-      .then(({ data }) => {
+    const userId = session.user.id;
+
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+        if (error) throw error;
         setProfile(data);
+        cacheProfile(data);
+      } catch {
+        // Offline (or any other transient failure) — without this fallback
+        // profileLoading stayed true forever, since nothing else ever set
+        // it back to false. That silently blocked tapping the map to
+        // create an observation, repeating "Still loading your account"
+        // indefinitely even though the person's role/permissions haven't
+        // actually changed since the last time this loaded successfully.
+        const cached = getCachedProfile(userId);
+        if (cached) setProfile(cached);
+      } finally {
         setProfileLoading(false);
-      });
+      }
+    })();
   }, [session]);
 
   const fetchObservations = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("observations")
-      // observations has TWO foreign keys into profiles (reported_by and
-      // closed_by), so the embed must specify which one — otherwise
-      // PostgREST can't disambiguate and the whole query silently errors
-      // out, returning null (which looked like "0 observations").
-      .select(
-        "*, profiles!observations_reported_by_fkey(full_name, role, company), claimed_by_profile:profiles!observations_claimed_by_fkey(full_name), observation_photos(*)"
-      )
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("observations")
+        // observations has TWO foreign keys into profiles (reported_by and
+        // closed_by), so the embed must specify which one — otherwise
+        // PostgREST can't disambiguate and the whole query silently errors
+        // out, returning null (which looked like "0 observations").
+        .select(
+          "*, profiles!observations_reported_by_fkey(full_name, role, company), claimed_by_profile:profiles!observations_claimed_by_fkey(full_name), observation_photos(*)"
+        )
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      // Most commonly this means Row Level Security is hiding rows because
-      // this account's role/company doesn't match — not a network/API bug.
-      console.error("Failed to load observations:", error.message);
+      if (error) throw error;
+      setObservations(data ?? []);
+      cacheObservations(data ?? []);
+    } catch (err) {
+      // Most commonly either RLS hiding rows (role/company mismatch) or,
+      // offline, the fetch never reaching the network at all. Either way,
+      // falling back to the last successfully loaded list keeps the map,
+      // list, and stats showing real (if slightly stale) data instead of
+      // going blank the moment the connection drops.
+      console.error("Failed to load observations:", err);
+      const cached = getCachedObservations();
+      if (cached.length > 0) setObservations(cached);
     }
-    setObservations(data ?? []);
   }, []);
 
   useEffect(() => {

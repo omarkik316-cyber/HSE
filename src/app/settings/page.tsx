@@ -17,6 +17,7 @@ import {
   type OfflineDownloadProgress,
 } from "@/lib/offlineMap";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { cacheProfile, getCachedProfile } from "@/lib/localCache";
 
 function SegmentedControl<T extends string>({
   value,
@@ -141,12 +142,18 @@ export default function SettingsPage() {
       setProfile(null);
       return;
     }
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .single()
-      .then(({ data }) => setProfile(data));
+    const userId = session.user.id;
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+        if (error) throw error;
+        setProfile(data);
+        cacheProfile(data);
+      } catch {
+        const cached = getCachedProfile(userId);
+        if (cached) setProfile(cached);
+      }
+    })();
   }, [session]);
 
   async function handleSignOut() {
