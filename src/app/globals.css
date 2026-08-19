@@ -18,6 +18,20 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Fallback for WebViews that don't understand the `dvh` unit (common on
+   older/China-market Android ROMs without an updated System WebView).
+   Tailwind's `h-dvh` utility compiles to `height: 100dvh`; when a browser
+   can't parse that value it drops the declaration entirely, leaving the
+   element with `height: auto` — collapsing the whole app shell to the size
+   of its content instead of filling the screen (map area ends up with 0
+   height). This restores a `100vh` height in that case only; browsers that
+   do support `dvh` keep using Tailwind's more accurate declaration. */
+@supports not (height: 100dvh) {
+  .h-dvh {
+    height: 100vh;
+  }
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
