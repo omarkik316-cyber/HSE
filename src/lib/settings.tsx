@@ -6,12 +6,18 @@ export type ThemeMode = "light" | "dark" | "system";
 export type BasemapMode = "satellite" | "streets";
 export type TextSizeMode = "standard" | "large";
 export type LanguageMode = "en" | "ar" | "zh";
+// "modern" is the full interactive-map experience. "classic" never loads
+// Leaflet or any map tiles at all — it's a map-free, list-first layout
+// built for raising a report as fast as possible, and it doubles as an
+// escape hatch on devices/WebViews where the map itself won't render.
+export type UiMode = "modern" | "classic";
 
 interface Settings {
   theme: ThemeMode;
   basemap: BasemapMode;
   textSize: TextSizeMode;
   language: LanguageMode;
+  uiMode: UiMode;
 }
 
 interface SettingsContextValue extends Settings {
@@ -19,12 +25,19 @@ interface SettingsContextValue extends Settings {
   setBasemap: (basemap: BasemapMode) => void;
   setTextSize: (size: TextSizeMode) => void;
   setLanguage: (language: LanguageMode) => void;
+  setUiMode: (mode: UiMode) => void;
 }
 
 // English is the app's default/base language now — Arabic and Chinese are
 // opt-in from Settings rather than the starting language, since most of
 // this deployment's day-to-day users work in English.
-const DEFAULTS: Settings = { theme: "system", basemap: "satellite", textSize: "standard", language: "en" };
+const DEFAULTS: Settings = {
+  theme: "system",
+  basemap: "satellite",
+  textSize: "standard",
+  language: "en",
+  uiMode: "modern",
+};
 const STORAGE_KEY = "hse-app-settings";
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -93,10 +106,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const setBasemap = useCallback((basemap: BasemapMode) => setSettings((s) => ({ ...s, basemap })), []);
   const setTextSize = useCallback((textSize: TextSizeMode) => setSettings((s) => ({ ...s, textSize })), []);
   const setLanguage = useCallback((language: LanguageMode) => setSettings((s) => ({ ...s, language })), []);
+  const setUiMode = useCallback((uiMode: UiMode) => setSettings((s) => ({ ...s, uiMode })), []);
 
   const value = useMemo(
-    () => ({ ...settings, setTheme, setBasemap, setTextSize, setLanguage }),
-    [settings, setTheme, setBasemap, setTextSize, setLanguage]
+    () => ({ ...settings, setTheme, setBasemap, setTextSize, setLanguage, setUiMode }),
+    [settings, setTheme, setBasemap, setTextSize, setLanguage, setUiMode]
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
@@ -113,6 +127,7 @@ export function useSettings(): SettingsContextValue {
       setBasemap: () => {},
       setTextSize: () => {},
       setLanguage: () => {},
+      setUiMode: () => {},
     };
   }
   return ctx;

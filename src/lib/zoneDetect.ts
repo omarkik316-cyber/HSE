@@ -44,3 +44,34 @@ export function detectZone(
   matches.sort((a, b) => a.area - b.area);
   return matches[0].name;
 }
+
+export interface ZoneOption {
+  name: string;
+  lng: number;
+  lat: number;
+}
+
+/**
+ * Flattens the zone polygons into a pickable list of {name, lng, lat} —
+ * one entry per named zone, positioned at that zone's centroid. Used by
+ * the map-free "Classic" mode so a location can still be attached to a
+ * new observation (for the photo stamp, the pin position if the person
+ * later switches back to Modern, and record-keeping) without ever
+ * loading Leaflet or asking the person to tap a map.
+ */
+export function getZoneOptions(zones: FeatureCollection<Polygon>): ZoneOption[] {
+  const byName = new Map<string, ZoneOption>();
+  for (const feature of zones.features) {
+    if (feature.geometry.type !== "Polygon") continue;
+    const name = feature.properties?.name;
+    if (!name || byName.has(name)) continue;
+    try {
+      const centroid = turf.centroid(feature as Feature<Polygon>);
+      const [lng, lat] = centroid.geometry.coordinates;
+      byName.set(name, { name, lng, lat });
+    } catch {
+      continue;
+    }
+  }
+  return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
+}

@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { useSettings, type BasemapMode, type TextSizeMode, type ThemeMode, type LanguageMode } from "@/lib/settings";
+import {
+  useSettings,
+  type BasemapMode,
+  type TextSizeMode,
+  type ThemeMode,
+  type LanguageMode,
+  type UiMode,
+} from "@/lib/settings";
 import BottomNav from "@/components/BottomNav";
 import PendingUploads from "@/components/PendingUploads";
 import type { Profile } from "@/types";
@@ -47,6 +54,50 @@ function SegmentedControl<T extends string>({
   );
 }
 
+function AppModeCard({
+  selected,
+  icon,
+  gradient,
+  title,
+  description,
+  onClick,
+}: {
+  selected: boolean;
+  icon: React.ReactNode;
+  gradient: string;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`tap relative flex-1 min-w-0 text-left rounded-2xl p-3.5 border-2 transition-colors overflow-hidden ${
+        selected
+          ? "border-blue-600 bg-blue-50/70 dark:bg-blue-950/40"
+          : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900"
+      }`}
+    >
+      <div
+        className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg mb-2.5 bg-gradient-to-br ${gradient} shadow-sm`}
+      >
+        {icon}
+      </div>
+      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{title}</p>
+      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 leading-snug">{description}</p>
+      {selected && (
+        <div className="absolute top-2.5 right-2.5 w-4.5 h-4.5 rounded-full bg-blue-600 text-white flex items-center justify-center">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+            <path d="M20 6 9 17l-5-5" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      )}
+    </button>
+  );
+}
+
 function SettingsGroup({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
@@ -82,7 +133,18 @@ function SettingsRow({
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { theme, setTheme, basemap, setBasemap, textSize, setTextSize, language, setLanguage } = useSettings();
+  const {
+    theme,
+    setTheme,
+    basemap,
+    setBasemap,
+    textSize,
+    setTextSize,
+    language,
+    setLanguage,
+    uiMode,
+    setUiMode,
+  } = useSettings();
   const { t } = useT();
   const isOnline = useOnlineStatus();
   const [session, setSession] = useState<Session | null>(null);
@@ -248,23 +310,47 @@ export default function SettingsPage() {
           />
         </SettingsGroup>
 
-        <SettingsGroup title={t("settings.map")}>
-          <SettingsRow
-            label={t("settings.defaultBasemap")}
-            description={t("settings.basemapDesc")}
-            control={
-              <SegmentedControl<BasemapMode>
-                value={basemap}
-                onChange={setBasemap}
-                options={[
-                  { value: "satellite", label: t("settings.satellite") },
-                  { value: "streets", label: t("settings.streets") },
-                ]}
-              />
-            }
-          />
+        <SettingsGroup title={t("settings.appMode")}>
+          <div className="p-3 flex gap-2.5">
+            <AppModeCard
+              selected={uiMode === "modern"}
+              onClick={() => setUiMode("modern")}
+              gradient="from-sky-400 to-blue-600"
+              icon="🗺️"
+              title={t("settings.appModeModernTitle")}
+              description={t("settings.appModeModernDesc")}
+            />
+            <AppModeCard
+              selected={uiMode === "classic"}
+              onClick={() => setUiMode("classic")}
+              gradient="from-amber-400 to-orange-600"
+              icon="⚡"
+              title={t("settings.appModeClassicTitle")}
+              description={t("settings.appModeClassicDesc")}
+            />
+          </div>
         </SettingsGroup>
 
+        {uiMode === "modern" && (
+          <SettingsGroup title={t("settings.map")}>
+            <SettingsRow
+              label={t("settings.defaultBasemap")}
+              description={t("settings.basemapDesc")}
+              control={
+                <SegmentedControl<BasemapMode>
+                  value={basemap}
+                  onChange={setBasemap}
+                  options={[
+                    { value: "satellite", label: t("settings.satellite") },
+                    { value: "streets", label: t("settings.streets") },
+                  ]}
+                />
+              }
+            />
+          </SettingsGroup>
+        )}
+
+        {uiMode === "modern" && (
         <SettingsGroup title={t("settings.offlineMap")}>
           <div className="px-4 py-3.5 space-y-3">
             <div>
@@ -345,6 +431,7 @@ export default function SettingsPage() {
             )}
           </div>
         </SettingsGroup>
+        )}
 
         <SettingsGroup>
           <button onClick={handleSignOut} className="tap w-full px-4 py-3.5 text-sm font-medium text-red-600 dark:text-red-400 text-center">

@@ -7,15 +7,23 @@ import { useSettings } from "@/lib/settings";
 import ObservationForm from "@/components/ObservationForm";
 import ObservationDetail from "@/components/ObservationDetail";
 import ObservationsList from "@/components/ObservationsList";
+import ClassicHome from "@/components/ClassicHome";
+import ZonePickerSheet from "@/components/ZonePickerSheet";
 import StatsBar from "@/components/StatsBar";
 import FilterBar, { defaultFilters, applyFilters, type Filters } from "@/components/FilterBar";
 import BottomNav from "@/components/BottomNav";
 import NotificationBell from "@/components/NotificationBell";
 import { startAutoSync, subscribeQueue, getPendingObservations } from "@/lib/offlineQueue";
 import { cacheProfile, getCachedProfile, cacheObservations, getCachedObservations } from "@/lib/localCache";
+import { loadZones, detectZone, getZoneOptions, type ZoneOption } from "@/lib/zoneDetect";
 import { useT } from "@/lib/i18n";
 import type { Observation, Profile } from "@/types";
 import type { Session } from "@supabase/supabase-js";
+
+// Same project-center fallback MapView uses when it can't compute real
+// site bounds — kept here too so a Classic-mode "General / not sure"
+// report lands in a sane place instead of (0, 0).
+const DEFAULT_CENTER = { lng: 46.745, lat: 24.88 };
 
 // Leaflet touches `window`/`document` at import time, which breaks Next.js's
 // server-side render pass. Loading it only on the client (ssr: false) fixes
@@ -37,7 +45,7 @@ const MapView = dynamic(() => import("@/components/MapView"), {
 type PendingPin = { lng: number; lat: number; zoneName: string | null } | null;
 
 export default function DashboardPage() {
-  const { basemap } = useSettings();
+  const { basemap, uiMode } = useSettings();
   const { t } = useT();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -64,6 +72,15 @@ export default function DashboardPage() {
   // Count of observations saved locally because the connection was too weak
   // to send them — shown as a small badge on the Settings entry point.
   const [pendingCount, setPendingCount] = useState(0);
+  // Classic mode: "Quick Report" resolves a location via GPS before it can
+  // open the form (the form requires lat/lng up front, e.g. to stamp the
+  // photo). This tracks that resolution step, and the manual zone-picker
+  // sheet shown when GPS is denied, times out, or isn't available at all.
+  const [locating, setLocating] = useState(false);
+  const [zonePicker, setZonePicker] = useState<{
+    zones: ZoneOption[];
+    reason: "denied" | "unsupported" | "timeout";
+  } | null>(null);
 
   const filteredObservations = useMemo(
     () => applyFilters(observations, filters),
@@ -181,6 +198,75 @@ export default function DashboardPage() {
     [profile, profileLoading, t]
   );
 
+  // Shared by both modes: same permission check `handleMapClick` uses, but
+  // callable without already having a location in hand.
+  const canCreateObservation = useCallback(() => {
+    if (profileLoading) {
+      setToast(t("dashboard.stillLoadingAccount"));
+      return false;
+    }
+    const allowed =
+      profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin";
+    if (!allowed) {
+      setToast(t("dashboard.roleCannotCreate"));
+      return false;
+    }
+    return true;
+  }, [profile, profileLoading, t]);
+
+  const openManualZonePicker = useCallback(
+    async (reason: "denied" | "unsupported" | "timeout") => {
+      let zones: ZoneOption[] = [];
+      try {
+        zones = getZoneOptions(await loadZones());
+      } catch {
+        // No zone data available (e.g. fully offline on first-ever load) —
+        // the sheet still offers the "General / not sure" option below.
+      }
+      setLocating(false);
+      setZonePicker({ zones, reason });
+    },
+    []
+  );
+
+  // Classic mode's entry point for raising an observation — there's no map
+  // to tap, so location comes from the device's GPS instead, with the
+  // zone auto-detected the same way a map tap would. If GPS is denied,
+  // times out, or isn't available, this falls back to letting the person
+  // pick their zone from a list rather than blocking them entirely.
+  const handleQuickReport = useCallback(() => {
+    if (!canCreateObservation()) return;
+    setListOpen(false);
+    setSelectedObs(null);
+    setZonePicker(null);
+
+    if (!("geolocation" in navigator)) {
+      openManualZonePicker("unsupported");
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { longitude: lng, latitude: lat } = position.coords;
+        let zoneName: string | null = null;
+        try {
+          zoneName = detectZone(lng, lat, await loadZones());
+        } catch {
+          // Zone lookup failing shouldn't block the report — it just goes
+          // in without a detected zone, same as tapping outside all zones
+          // on the map does.
+        }
+        setLocating(false);
+        setPendingPin({ lng, lat, zoneName });
+      },
+      (err) => {
+        openManualZonePicker(err.code === err.TIMEOUT ? "timeout" : "denied");
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  }, [canCreateObservation, openManualZonePicker]);
+
   // Auto-dismiss the toast after a few seconds.
   useEffect(() => {
     if (!toast) return;
@@ -268,61 +354,94 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Map: always mounted, always full-size, never hidden.
-            z-0 here is CRITICAL — without an explicit z-index, this div
-            doesn't create its own CSS stacking context, so Leaflet's
-            internal panes (which use z-index up to 600–700 for markers,
-            popups, tooltips) can escape ABOVE our foreground panels
-            (z-20/z-30/z-40) regardless of their z-index values. That's
-            exactly what caused zone labels to render on top of the
-            observation form instead of staying behind it. */}
-        <div className="absolute inset-0 z-0">
-          <MapView
+        {uiMode === "classic" ? (
+          /* Classic mode never mounts MapView at all — no Leaflet init, no
+             tile requests. This is a deliberate escape hatch for devices
+             (or WebViews) where the map won't render, as well as a
+             genuinely faster path to raising a report on any device. */
+          <ClassicHome
             observations={filteredObservations}
-            onMapClick={handleMapClick}
-            onPinClick={handlePinClick}
-            basemap={basemap}
+            canCreate={!!canCreate}
+            locating={locating}
+            onQuickReport={handleQuickReport}
+            onSelect={handlePinClick}
           />
-          {canCreate && !pendingPin && !selectedObs && !listOpen && (
-            <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-white/95 dark:bg-slate-900/90 backdrop-blur px-3 py-2 rounded-xl shadow text-xs text-slate-600 dark:text-slate-300">
-              {t("dashboard.tapToCreate")}
+        ) : (
+          <>
+            {/* Map: always mounted, always full-size, never hidden.
+                z-0 here is CRITICAL — without an explicit z-index, this div
+                doesn't create its own CSS stacking context, so Leaflet's
+                internal panes (which use z-index up to 600–700 for markers,
+                popups, tooltips) can escape ABOVE our foreground panels
+                (z-20/z-30/z-40) regardless of their z-index values. That's
+                exactly what caused zone labels to render on top of the
+                observation form instead of staying behind it. */}
+            <div className="absolute inset-0 z-0">
+              <MapView
+                observations={filteredObservations}
+                onMapClick={handleMapClick}
+                onPinClick={handlePinClick}
+                basemap={basemap}
+              />
+              {canCreate && !pendingPin && !selectedObs && !listOpen && (
+                <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-white/95 dark:bg-slate-900/90 backdrop-blur px-3 py-2 rounded-xl shadow text-xs text-slate-600 dark:text-slate-300">
+                  {t("dashboard.tapToCreate")}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Floating handle to open the observations list as a bottom sheet. */}
-        {!listOpen && !overlayOpen && (
-          <button
-            onClick={() => {
-              setPendingPin(null);
-              setSelectedObs(null);
-              setListOpen(true);
-            }}
-            className="tap absolute bottom-4 right-4 z-20 bg-slate-900 dark:bg-blue-600 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-1.5"
-          >
-            📋 {t("dashboard.observationsButton", { n: filteredObservations.length })}
-          </button>
+            {/* Floating handle to open the observations list as a bottom sheet. */}
+            {!listOpen && !overlayOpen && (
+              <button
+                onClick={() => {
+                  setPendingPin(null);
+                  setSelectedObs(null);
+                  setListOpen(true);
+                }}
+                className="tap absolute bottom-4 right-4 z-20 bg-slate-900 dark:bg-blue-600 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-1.5"
+              >
+                📋 {t("dashboard.observationsButton", { n: filteredObservations.length })}
+              </button>
+            )}
+
+            {/* Bottom sheet: covers the lower half of the screen, map stays
+                visible (and unresized) in the upper half. */}
+            {listOpen && (
+              <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shadow-2xl rounded-t-3xl overflow-hidden flex flex-col animate-sheet-up">
+                <div className="sheet-handle shrink-0" />
+                <div className="flex items-center justify-between px-4 py-1.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t("dashboard.observationsListTitle")}</span>
+                  <button
+                    onClick={() => setListOpen(false)}
+                    className="tap text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-lg leading-none px-2"
+                    aria-label={t("dashboard.closeList")}
+                  >
+                    ▼
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0">
+                  <ObservationsList observations={filteredObservations} onSelect={handlePinClick} />
+                </div>
+              </div>
+            )}
+          </>
         )}
 
-        {/* Bottom sheet: covers the lower half of the screen, map stays
-            visible (and unresized) in the upper half. */}
-        {listOpen && (
-          <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shadow-2xl rounded-t-3xl overflow-hidden flex flex-col animate-sheet-up">
-            <div className="sheet-handle shrink-0" />
-            <div className="flex items-center justify-between px-4 py-1.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t("dashboard.observationsListTitle")}</span>
-              <button
-                onClick={() => setListOpen(false)}
-                className="tap text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-lg leading-none px-2"
-                aria-label={t("dashboard.closeList")}
-              >
-                ▼
-              </button>
-            </div>
-            <div className="flex-1 min-h-0">
-              <ObservationsList observations={filteredObservations} onSelect={handlePinClick} />
-            </div>
-          </div>
+        {zonePicker && (
+          <ZonePickerSheet
+            zones={zonePicker.zones}
+            reason={zonePicker.reason}
+            defaultCenter={DEFAULT_CENTER}
+            onPick={(pin) => {
+              setZonePicker(null);
+              setPendingPin(pin);
+            }}
+            onRetryGps={() => {
+              setZonePicker(null);
+              handleQuickReport();
+            }}
+            onClose={() => setZonePicker(null)}
+          />
         )}
 
         {/* On mobile this becomes a full-screen overlay so the map never
