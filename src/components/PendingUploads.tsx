@@ -10,8 +10,12 @@ import {
   removePendingObservation,
   type PendingObservationRecord,
 } from "@/lib/offlineQueue";
+import { useT } from "@/lib/i18n";
+import { useDateLocale } from "@/lib/dateLocale";
 
 export default function PendingUploads() {
+  const { t } = useT();
+  const dateLocale = useDateLocale();
   const [items, setItems] = useState<PendingObservationRecord[]>([]);
   const [retryingAll, setRetryingAll] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -53,14 +57,14 @@ export default function PendingUploads() {
     <div className="space-y-2">
       <div className="flex items-center justify-between px-1">
         <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">
-          Pending Uploads ({items.length})
+          {t("pending.title", { n: items.length })}
         </p>
         <button
           onClick={handleRetryAll}
           disabled={retryingAll}
           className="tap text-xs font-medium text-blue-600 dark:text-blue-400 disabled:opacity-50"
         >
-          {retryingAll ? "Retrying..." : "Retry all"}
+          {retryingAll ? t("pending.retrying") : t("pending.retryAll")}
         </button>
       </div>
 
@@ -70,12 +74,14 @@ export default function PendingUploads() {
             <div className="mt-0.5 shrink-0 w-2.5 h-2.5 rounded-full bg-amber-500" aria-hidden />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">
-                {item.title || "Untitled observation"}
+                {item.title || t("pending.untitled")}
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                 {item.status === "syncing" || retryingId === item.id
-                  ? "Sending..."
-                  : `Waiting to send · ${formatDistanceToNow(new Date(item.createdAt))} ago`}
+                  ? t("pending.sending")
+                  : t("pending.waitingToSend", {
+                      time: formatDistanceToNow(new Date(item.createdAt), { locale: dateLocale }),
+                    })}
               </p>
               {item.status === "failed" && item.lastError && (
                 <p className="text-xs text-red-600 dark:text-red-400 mt-1">{item.lastError}</p>
@@ -87,13 +93,13 @@ export default function PendingUploads() {
                 disabled={retryingId === item.id || item.status === "syncing"}
                 className="tap text-xs font-medium text-blue-600 dark:text-blue-400 px-2 py-1 disabled:opacity-50"
               >
-                Retry
+                {t("pending.retry")}
               </button>
               <button
                 onClick={() => handleDelete(item.id)}
                 className="tap text-xs font-medium text-red-600 dark:text-red-400 px-2 py-1"
               >
-                Delete
+                {t("pending.delete")}
               </button>
             </div>
           </div>

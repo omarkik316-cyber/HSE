@@ -1,7 +1,11 @@
+"use client";
+
 import type { Observation } from "@/types";
 import { isObservationOverdue } from "@/lib/overdue";
+import { useT } from "@/lib/i18n";
 
 export default function StatsBar({ observations }: { observations: Observation[] }) {
+  const { t } = useT();
   const open = observations.filter((o) => o.status === "open").length;
   const inProgress = observations.filter((o) => o.status === "in_progress").length;
   const pendingReview = observations.filter((o) => o.status === "pending_review").length;
@@ -12,13 +16,13 @@ export default function StatsBar({ observations }: { observations: Observation[]
   ).length;
 
   const stats = [
-    { label: "Open", value: open, color: "text-red-600 dark:text-red-400" },
-    { label: "In Progress", value: inProgress, color: "text-amber-600 dark:text-amber-400" },
-    { label: "Pending Review", value: pendingReview, color: "text-cyan-600 dark:text-cyan-400" },
-    { label: "Overdue", value: overdue, color: "text-red-700 dark:text-red-400" },
-    { label: "Critical", value: critical, color: "text-red-800 dark:text-red-300" },
-    { label: "Closed", value: closed, color: "text-green-600 dark:text-green-400" },
-    { label: "Total", value: observations.length, color: "text-slate-700 dark:text-slate-200" },
+    { label: t("statsBar.open"), value: open, color: "text-red-600 dark:text-red-400" },
+    { label: t("statsBar.inProgress"), value: inProgress, color: "text-amber-600 dark:text-amber-400" },
+    { label: t("statsBar.pendingReview"), value: pendingReview, color: "text-cyan-600 dark:text-cyan-400" },
+    { label: t("statsBar.overdue"), value: overdue, color: "text-red-700 dark:text-red-400" },
+    { label: t("statsBar.critical"), value: critical, color: "text-red-800 dark:text-red-300" },
+    { label: t("statsBar.closed"), value: closed, color: "text-green-600 dark:text-green-400" },
+    { label: t("statsBar.total"), value: observations.length, color: "text-slate-700 dark:text-slate-200" },
   ];
 
   return (

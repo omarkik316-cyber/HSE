@@ -10,6 +10,8 @@ import { StatusBadge, PriorityBadge } from "./StatusBadge";
 import type { Observation, ObservationStatus, ObservationComment, ObservationPriority } from "@/types";
 import { CATEGORIES } from "@/types";
 import { formatDistanceToNow, format } from "date-fns";
+import { useT, categoryLabel, type TranslationKey } from "@/lib/i18n";
+import { useDateLocale } from "@/lib/dateLocale";
 
 interface Props {
   observation: Observation;
@@ -27,17 +29,21 @@ function toDateTimeLocal(iso: string | null): string {
   return new Date(d.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  open: "Reopened",
-  in_progress: "Marked In Progress",
-  pending_review: "Submitted for Review",
-  closed: "Approved & Closed",
+const ACTION_LABEL_KEYS: Record<string, TranslationKey> = {
+  open: "detail.actionLabel.open",
+  in_progress: "detail.actionLabel.in_progress",
+  pending_review: "detail.actionLabel.pending_review",
+  closed: "detail.actionLabel.closed",
 };
 
 const inputCls =
   "w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm";
 
 export default function ObservationDetail({ observation, userId, userName, userRole, onClose, onUpdated }: Props) {
+  const { t } = useT();
+  const dateLocale = useDateLocale();
+  const actionLabel = (status: string) => t(ACTION_LABEL_KEYS[status] ?? "detail.actionLabel.open");
+
   const [comments, setComments] = useState<ObservationComment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null);
@@ -159,7 +165,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
 
       const { error } = await supabase.from("observations").update(updatePayload).eq("id", observation.id);
       if (error) {
-        alert(`Failed to update status: ${error.message}`);
+        alert(t("detail.updateFailed", { msg: error.message }));
         return;
       }
 
@@ -185,11 +191,11 @@ export default function ObservationDetail({ observation, userId, userName, userR
   }
 
   function submitForReview() {
-    changeStatus("pending_review", ACTION_LABELS.pending_review);
+    changeStatus("pending_review", actionLabel("pending_review"));
   }
 
   function approveAndClose() {
-    changeStatus("closed", ACTION_LABELS.closed, {
+    changeStatus("closed", actionLabel("closed"), {
       closed_at: new Date().toISOString(),
       closed_by: userId,
     });
@@ -197,10 +203,10 @@ export default function ObservationDetail({ observation, userId, userName, userR
 
   async function confirmReject() {
     if (!rejectReason.trim()) {
-      alert("Please add a reason so the contractor knows what to fix.");
+      alert(t("detail.reasonRequired"));
       return;
     }
-    await changeStatus("in_progress", `Rejected — needs rework: ${rejectReason.trim()}`);
+    await changeStatus("in_progress", t("detail.rejectedComment", { reason: rejectReason.trim() }));
     setRejecting(false);
     setRejectReason("");
   }
@@ -221,14 +227,14 @@ export default function ObservationDetail({ observation, userId, userName, userR
         .eq("id", observation.id);
 
       if (error) {
-        alert(`Failed to save changes: ${error.message}`);
+        alert(t("detail.saveFailed", { msg: error.message }));
         return;
       }
 
       await supabase.from("observation_comments").insert({
         observation_id: observation.id,
         author_id: userId,
-        comment: "Observation details were edited",
+        comment: t("detail.editedComment"),
       });
 
       setIsEditing(false);
@@ -263,13 +269,13 @@ export default function ObservationDetail({ observation, userId, userName, userR
     return (
       <div className="h-full flex flex-col bg-white dark:bg-slate-900">
         <div className="shrink-0 flex items-center justify-between px-5 pt-5 pb-3 pt-safe border-b border-slate-100 dark:border-slate-800">
-          <h3 className="text-lg font-semibold">Edit Observation</h3>
+          <h3 className="text-lg font-semibold">{t("detail.editObservation")}</h3>
           <button onClick={() => setIsEditing(false)} className="tap text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 text-xl leading-none px-1">✕</button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
-            <label htmlFor="edit-title" className="block text-sm font-medium mb-1">Title</label>
+            <label htmlFor="edit-title" className="block text-sm font-medium mb-1">{t("obsForm.fieldTitle")}</label>
             <input
               id="edit-title"
               name="title"
@@ -281,7 +287,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="edit-category" className="block text-sm font-medium mb-1">Category</label>
+              <label htmlFor="edit-category" className="block text-sm font-medium mb-1">{t("obsForm.category")}</label>
               <select
                 id="edit-category"
                 name="category"
@@ -290,12 +296,12 @@ export default function ObservationDetail({ observation, userId, userName, userR
                 className={inputCls}
               >
                 {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>{categoryLabel(t, c)}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label htmlFor="edit-priority" className="block text-sm font-medium mb-1">Priority</label>
+              <label htmlFor="edit-priority" className="block text-sm font-medium mb-1">{t("obsForm.priority")}</label>
               <select
                 id="edit-priority"
                 name="priority"
@@ -303,16 +309,16 @@ export default function ObservationDetail({ observation, userId, userName, userR
                 onChange={(e) => setEditPriority(e.target.value as ObservationPriority)}
                 className={inputCls}
               >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">Critical</option>
+                <option value="low">{t("priority.low")}</option>
+                <option value="medium">{t("priority.medium")}</option>
+                <option value="high">{t("priority.high")}</option>
+                <option value="critical">{t("priority.critical")}</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label htmlFor="edit-description" className="block text-sm font-medium mb-1">Description</label>
+            <label htmlFor="edit-description" className="block text-sm font-medium mb-1">{t("obsForm.description")}</label>
             <textarea
               id="edit-description"
               name="description"
@@ -326,7 +332,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="edit-contractor" className="block text-sm font-medium mb-1">
-                Assigned Safety Officer / Contractor
+                {t("obsForm.assignedContractor")}
               </label>
               <input
                 id="edit-contractor"
@@ -337,7 +343,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
               />
             </div>
             <div>
-              <label htmlFor="edit-due-date" className="block text-sm font-medium mb-1">Due Date &amp; Time</label>
+              <label htmlFor="edit-due-date" className="block text-sm font-medium mb-1">{t("obsForm.dueDate")}</label>
               <input
                 id="edit-due-date"
                 name="due_date"
@@ -356,14 +362,14 @@ export default function ObservationDetail({ observation, userId, userName, userR
             onClick={saveEdits}
             className="tap flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
           >
-            {busy ? "Saving..." : "Save Changes"}
+            {busy ? t("common.saving") : t("detail.saveChanges")}
           </button>
           <button
             type="button"
             onClick={() => setIsEditing(false)}
             className="tap px-4 py-3 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-xl"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       </div>
@@ -378,7 +384,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
             <span className="text-slate-400 dark:text-slate-500 font-normal">#{observation.ticket_no}</span>{" "}
             {observation.title}
           </h3>
-          <p className="text-sm text-gray-500 dark:text-slate-400">{observation.zone_name ?? "Unknown zone"}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{observation.zone_name ?? t("detail.unknownZone")}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {canEditDetails && (
@@ -386,7 +392,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
               onClick={() => setIsEditing(true)}
               className="tap text-xs px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300"
             >
-              Edit
+              {t("detail.edit")}
             </button>
           )}
           {canDelete && (
@@ -394,7 +400,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
               onClick={() => setConfirmingDelete(true)}
               className="tap text-xs px-2 py-1 border border-red-200 dark:border-red-900 rounded-lg text-red-600 dark:text-red-400"
             >
-              Delete
+              {t("detail.delete")}
             </button>
           )}
           <button onClick={onClose} className="tap text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 text-xl leading-none px-1">✕</button>
@@ -404,7 +410,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
       {confirmingDelete && (
         <div className="shrink-0 px-5 py-3 bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-900 flex items-center justify-between gap-3">
           <p className="text-xs text-red-700 dark:text-red-300">
-            Delete this observation permanently? This removes its photos and comments too — it can&apos;t be undone.
+            {t("detail.deleteConfirm")}
           </p>
           <div className="flex gap-2 shrink-0">
             <button
@@ -412,14 +418,14 @@ export default function ObservationDetail({ observation, userId, userName, userR
               disabled={deleting}
               className="tap text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               onClick={handleDelete}
               disabled={deleting}
               className="tap text-xs px-2.5 py-1.5 rounded-lg bg-red-600 text-white font-semibold disabled:opacity-60"
             >
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting ? t("common.deleting") : t("detail.delete")}
             </button>
           </div>
         </div>
@@ -430,16 +436,16 @@ export default function ObservationDetail({ observation, userId, userName, userR
           <StatusBadge status={observation.status} />
           <PriorityBadge priority={observation.priority} />
           <span className="text-xs px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-            {observation.category}
+            {categoryLabel(t, observation.category)}
           </span>
           {observation.profiles?.role === "consultant" && (
             <span className="text-xs px-2 py-1 rounded-full bg-blue-600 text-white font-semibold">
-              Consultant · same-day close
+              {t("detail.consultantBadge")}
             </span>
           )}
           {isOverdue && (
             <span className="text-xs px-2 py-1 rounded-full bg-red-600 text-white font-semibold">
-              OVERDUE
+              {t("detail.overdue")}
             </span>
           )}
         </div>
@@ -449,26 +455,26 @@ export default function ObservationDetail({ observation, userId, userName, userR
         )}
 
         <div className="text-xs text-gray-500 dark:text-slate-400 space-y-1">
-          <p>Reported: {formatDistanceToNow(new Date(observation.created_at))} ago</p>
-          {observation.assigned_contractor && <p>Assigned: {observation.assigned_contractor}</p>}
+          <p>{t("detail.reported", { time: formatDistanceToNow(new Date(observation.created_at), { locale: dateLocale }) })}</p>
+          {observation.assigned_contractor && <p>{t("detail.assigned", { contractor: observation.assigned_contractor })}</p>}
           {observation.claimed_by_profile && (
-            <p>🔒 Claimed by: {observation.claimed_by_profile.full_name}</p>
+            <p>{t("detail.claimedBy", { name: observation.claimed_by_profile.full_name })}</p>
           )}
           {observation.due_date && (
-            <p>Due: {format(new Date(observation.due_date), "d MMM yyyy, h:mm a")}</p>
+            <p>{t("detail.due", { date: format(new Date(observation.due_date), "d MMM yyyy, h:mm a", { locale: dateLocale }) })}</p>
           )}
         </div>
 
         {beforePhotos.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Before (violation)</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">{t("detail.beforePhotos")}</p>
             <div className="flex gap-2 flex-wrap">
               {beforePhotos.map((p) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={p.id}
                   src={p.photo_url}
-                  alt="Before"
+                  alt={t("detail.beforeAlt")}
                   onClick={() => setLightboxUrl(p.photo_url)}
                   className="tap w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer"
                 />
@@ -479,14 +485,14 @@ export default function ObservationDetail({ observation, userId, userName, userR
 
         {afterPhotos.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">After (corrected)</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">{t("detail.afterPhotos")}</p>
             <div className="flex gap-2 flex-wrap">
               {afterPhotos.map((p) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={p.id}
                   src={p.photo_url}
-                  alt="After"
+                  alt={t("detail.afterAlt")}
                   onClick={() => setLightboxUrl(p.photo_url)}
                   className="tap w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700 cursor-pointer"
                 />
@@ -498,19 +504,19 @@ export default function ObservationDetail({ observation, userId, userName, userR
         {/* Contractor / safety officer / admin workflow: open -> in progress -> submit for review */}
         {canWorkOn && (observation.status === "open" || observation.status === "in_progress") && (
           <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
-            <p className="text-sm font-medium">Update status</p>
+            <p className="text-sm font-medium">{t("detail.updateStatus")}</p>
             {observation.status === "open" && (
               <button
                 disabled={busy}
                 onClick={() =>
-                  changeStatus("in_progress", `${ACTION_LABELS.in_progress} — claimed by this user`, {
+                  changeStatus("in_progress", `${actionLabel("in_progress")} — claimed by this user`, {
                     claimed_by: userId,
                     claimed_at: new Date().toISOString(),
                   })
                 }
                 className="tap w-full bg-amber-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
               >
-                Mark In Progress
+                {t("detail.markInProgress")}
               </button>
             )}
             {observation.status === "in_progress" && (
@@ -519,12 +525,13 @@ export default function ObservationDetail({ observation, userId, userName, userR
                   <div>
                     {observation.claimed_by && observation.claimed_by !== userId && (
                       <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 mb-2">
-                        Claimed by {observation.claimed_by_profile?.full_name ?? "another user"} — you&apos;re
-                        acting as admin.
+                        {t("detail.claimedByOther", {
+                          name: observation.claimed_by_profile?.full_name ?? t("detail.anotherUser"),
+                        })}
                       </p>
                     )}
                     <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
-                      Correction photo
+                      {t("detail.correctionPhoto")}
                     </label>
                     <input
                       ref={afterCameraInputRef}
@@ -557,23 +564,23 @@ export default function ObservationDetail({ observation, userId, userName, userR
                         onClick={() => afterCameraInputRef.current?.click()}
                         className="tap flex-1 border border-slate-200 dark:border-slate-700 rounded-xl py-2 text-xs font-medium flex items-center justify-center gap-1"
                       >
-                        📷 Take Photo
+                        {t("obsForm.takePhoto")}
                       </button>
                       <button
                         type="button"
                         onClick={() => afterGalleryInputRef.current?.click()}
                         className="tap flex-1 border border-slate-200 dark:border-slate-700 rounded-xl py-2 text-xs font-medium flex items-center justify-center gap-1"
                       >
-                        🖼️ From Gallery
+                        {t("obsForm.fromGallery")}
                       </button>
                     </div>
-                    {stampingPhoto && <p className="text-xs text-slate-400 mb-2">Stamping photo...</p>}
+                    {stampingPhoto && <p className="text-xs text-slate-400 mb-2">{t("obsForm.stampingPhoto")}</p>}
                     {!stampingPhoto && afterPhotoPreviewUrl && (
                       <div className="mb-2 relative inline-block">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={afterPhotoPreviewUrl}
-                          alt="Correction photo preview"
+                          alt={t("detail.correctionPhoto")}
                           className="w-24 h-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700"
                         />
                         <button
@@ -583,7 +590,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
                             setAfterPhoto(null);
                             setAfterPhotoPreviewUrl(null);
                           }}
-                          aria-label="Remove photo"
+                          aria-label={t("obsForm.removePhoto")}
                           className="tap absolute -top-2 -right-2 w-6 h-6 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center shadow"
                         >
                           ✕
@@ -595,16 +602,17 @@ export default function ObservationDetail({ observation, userId, userName, userR
                       onClick={submitForReview}
                       className="tap w-full bg-cyan-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
                     >
-                      Submit for Review
+                      {t("detail.submitForReview")}
                     </button>
                     <p className="text-[11px] text-gray-400 mt-1">
-                      An admin will review the fix and either approve &amp; close it, or send it back for rework.
+                      {t("detail.adminReviewNote")}
                     </p>
                   </div>
                 ) : (
                   <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2.5">
-                    🔒 Claimed by <strong>{observation.claimed_by_profile?.full_name ?? "another user"}</strong>.
-                    Only they (or an admin) can submit the fix for this one.
+                    {t("detail.claimedLocked", {
+                      name: observation.claimed_by_profile?.full_name ?? t("detail.anotherUser"),
+                    })}
                   </p>
                 )}
               </>
@@ -615,7 +623,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
         {/* Admin review gate: approve or reject a submitted fix */}
         {canReview && observation.status === "pending_review" && (
           <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-2">
-            <p className="text-sm font-medium text-cyan-700 dark:text-cyan-400">Review this fix</p>
+            <p className="text-sm font-medium text-cyan-700 dark:text-cyan-400">{t("detail.reviewThisFix")}</p>
             {!rejecting ? (
               <div className="flex gap-2">
                 <button
@@ -623,20 +631,20 @@ export default function ObservationDetail({ observation, userId, userName, userR
                   onClick={approveAndClose}
                   className="tap flex-1 bg-green-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
                 >
-                  ✓ Approve &amp; Close
+                  {t("detail.approveClose")}
                 </button>
                 <button
                   disabled={busy}
                   onClick={() => setRejecting(true)}
                   className="tap flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
                 >
-                  ✕ Reject
+                  {t("detail.reject")}
                 </button>
               </div>
             ) : (
               <div className="space-y-2">
                 <label htmlFor="reject-reason" className="block text-xs text-gray-500 dark:text-slate-400">
-                  Why is this being sent back? (the contractor will see this)
+                  {t("detail.rejectReasonLabel")}
                 </label>
                 <textarea
                   id="reject-reason"
@@ -645,7 +653,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={2}
                   className={inputCls}
-                  placeholder="e.g. Photo doesn't show the harness properly attached"
+                  placeholder={t("detail.rejectReasonPlaceholder")}
                 />
                 <div className="flex gap-2">
                   <button
@@ -653,7 +661,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
                     onClick={confirmReject}
                     className="tap flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
                   >
-                    Confirm Rejection
+                    {t("detail.confirmRejection")}
                   </button>
                   <button
                     type="button"
@@ -663,7 +671,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
                     }}
                     className="tap px-4 py-2.5 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-xl"
                   >
-                    Cancel
+                    {t("common.cancel")}
                   </button>
                 </div>
               </div>
@@ -674,13 +682,13 @@ export default function ObservationDetail({ observation, userId, userName, userR
         {observation.status === "pending_review" && !canReview && (
           <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
             <p className="text-xs text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 rounded-xl px-3 py-2">
-              Waiting on admin review.
+              {t("detail.waitingAdminReview")}
             </p>
           </div>
         )}
 
         <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-          <p className="text-sm font-medium mb-2">Activity Log</p>
+          <p className="text-sm font-medium mb-2">{t("detail.activityLog")}</p>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {comments.map((c) => {
               const isAction = !!c.status_change_to;
@@ -695,30 +703,30 @@ export default function ObservationDetail({ observation, userId, userName, userR
                 >
                   {isAction && (
                     <span className="inline-block text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mr-1.5">
-                      Action:
+                      {t("detail.actionLabel")}
                     </span>
                   )}
-                  <span className="font-medium">{c.profiles?.full_name ?? "User"}</span>
+                  <span className="font-medium">{c.profiles?.full_name ?? t("detail.userFallback")}</span>
                   {" — "}
                   {c.comment}
                 </div>
               );
             })}
             {comments.length === 0 && (
-              <p className="text-xs text-gray-400">No activity yet.</p>
+              <p className="text-xs text-gray-400">{t("detail.noActivityYet")}</p>
             )}
           </div>
         </div>
       </div>
 
       <div className="shrink-0 flex gap-2 px-5 pt-3 pb-safe border-t border-slate-100 dark:border-slate-800 mb-4">
-        <label htmlFor="new-comment" className="sr-only">Add a note</label>
+        <label htmlFor="new-comment" className="sr-only">{t("detail.addNote")}</label>
         <input
           id="new-comment"
           name="comment"
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Add a note..."
+          placeholder={t("detail.addNote")}
           className={`flex-1 ${inputCls}`}
         />
         <button
@@ -726,7 +734,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
           disabled={busy}
           className="tap px-4 py-2.5 bg-slate-800 dark:bg-slate-700 text-white rounded-xl text-sm font-medium"
         >
-          Send
+          {t("common.send")}
         </button>
       </div>
 
@@ -739,7 +747,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
         >
           <button
             onClick={() => setLightboxUrl(null)}
-            aria-label="Close"
+            aria-label={t("common.close")}
             className="tap absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 text-white text-xl leading-none flex items-center justify-center"
           >
             ✕
@@ -747,7 +755,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={lightboxUrl}
-            alt="Full size"
+            alt={t("detail.fullSize")}
             onClick={(e) => e.stopPropagation()}
             className="max-w-[92vw] max-h-[85vh] object-contain rounded-lg"
           />

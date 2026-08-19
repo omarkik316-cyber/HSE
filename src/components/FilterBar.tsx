@@ -2,7 +2,8 @@
 
 import { useMemo, useRef, useState } from "react";
 import type { Observation, ObservationStatus, ObservationPriority } from "@/types";
-import { STATUS_LABELS, CATEGORIES } from "@/types";
+import { CATEGORIES } from "@/types";
+import { useT, statusLabel, priorityLabel, categoryLabel } from "@/lib/i18n";
 
 export interface Filters {
   statuses: Set<ObservationStatus>;
@@ -77,6 +78,7 @@ function ExcelFilterField({
   expanded: boolean;
   onToggleExpanded: () => void;
 }) {
+  const { t } = useT();
   const [search, setSearch] = useState("");
   const checkAllRef = useRef<HTMLInputElement>(null);
 
@@ -115,7 +117,11 @@ function ExcelFilterField({
     }
   }
 
-  const summary = allChecked ? "All" : noneChecked ? "None" : `${checkedCount} of ${options.length}`;
+  const summary = allChecked
+    ? t("filters.all")
+    : noneChecked
+      ? t("filters.none")
+      : t("filters.ofCount", { checked: checkedCount, total: options.length });
 
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
@@ -153,7 +159,7 @@ function ExcelFilterField({
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={`Search ${title.toLowerCase()}...`}
+                placeholder={t("filters.searchPlaceholder", { field: title.toLowerCase() })}
                 className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-1.5 text-xs"
               />
             </div>
@@ -168,7 +174,7 @@ function ExcelFilterField({
               className="w-4 h-4 rounded accent-blue-600"
             />
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              (Select All)
+              {t("filters.selectAll")}
             </span>
           </label>
 
@@ -188,7 +194,7 @@ function ExcelFilterField({
               </label>
             ))}
             {filteredOptions.length === 0 && (
-              <p className="px-3.5 py-3 text-xs text-slate-400">No matches.</p>
+              <p className="px-3.5 py-3 text-xs text-slate-400">{t("common.noMatches")}</p>
             )}
           </div>
         </div>
@@ -204,6 +210,7 @@ interface FilterBarProps {
 }
 
 export default function FilterBar({ observations, filters, onChange }: FilterBarProps) {
+  const { t } = useT();
   const [sheetOpen, setSheetOpen] = useState(false);
   // Draft state so the sheet can be dismissed without applying half-made
   // changes, mirroring the "Cancel / Apply" pattern of a native filter sheet.
@@ -218,12 +225,12 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
     return Array.from(zones).sort();
   }, [observations]);
 
-  const statusOptions: Option[] = ALL_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }));
+  const statusOptions: Option[] = ALL_STATUSES.map((s) => ({ value: s, label: statusLabel(t, s) }));
   const priorityOptions: Option[] = ALL_PRIORITIES.map((p) => ({
     value: p,
-    label: p.charAt(0).toUpperCase() + p.slice(1),
+    label: priorityLabel(t, p),
   }));
-  const categoryOptions: Option[] = CATEGORIES.map((c) => ({ value: c, label: c }));
+  const categoryOptions: Option[] = CATEGORIES.map((c) => ({ value: c, label: categoryLabel(t, c) }));
   const zoneOptionList: Option[] = zoneOptions.map((z) => ({ value: z, label: z }));
 
   const isDefault = isDefaultFilters(filters);
@@ -260,10 +267,10 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
               <path d="M4 5h16l-6 8v6l-4-2v-4L4 5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
             </svg>
-            Filters
+            {t("filters.filters")}
           </span>
           <span className="text-xs text-slate-400 dark:text-slate-500">
-            {resultCount} result{resultCount === 1 ? "" : "s"}
+            {resultCount === 1 ? t("filters.result", { n: resultCount }) : t("filters.results", { n: resultCount })}
           </span>
         </button>
 
@@ -272,7 +279,7 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
             onClick={resetAll}
             className="tap shrink-0 text-xs font-medium text-slate-400 dark:text-slate-500 px-1"
           >
-            Reset
+            {t("filters.reset")}
           </button>
         )}
       </div>
@@ -286,7 +293,7 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
           <div className="relative w-full sm:max-w-md bg-white dark:bg-slate-900 rounded-t-3xl shadow-sheet max-h-[88vh] flex flex-col animate-sheet-up">
             <div className="sheet-handle" />
             <div className="px-5 pb-1 flex items-center justify-between">
-              <h3 className="text-base font-semibold">Filters</h3>
+              <h3 className="text-base font-semibold">{t("filters.filters")}</h3>
               <button onClick={() => setSheetOpen(false)} className="tap text-slate-400 text-lg px-2">
                 ✕
               </button>
@@ -294,7 +301,7 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
 
             <div className="flex-1 overflow-y-auto px-5 py-3 space-y-2.5">
               <ExcelFilterField
-                title="Status"
+                title={t("filters.status")}
                 options={statusOptions}
                 selected={draft.statuses as unknown as Set<string>}
                 onChange={(next) =>
@@ -304,7 +311,7 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
                 onToggleExpanded={() => toggle("status")}
               />
               <ExcelFilterField
-                title="Priority"
+                title={t("filters.priority")}
                 options={priorityOptions}
                 selected={draft.priorities as unknown as Set<string>}
                 onChange={(next) =>
@@ -314,7 +321,7 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
                 onToggleExpanded={() => toggle("priority")}
               />
               <ExcelFilterField
-                title="Category"
+                title={t("filters.category")}
                 options={categoryOptions}
                 selected={draft.categories}
                 onChange={(next) => setDraft((d) => ({ ...d, categories: next }))}
@@ -322,7 +329,7 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
                 onToggleExpanded={() => toggle("category")}
               />
               <ExcelFilterField
-                title="Zone"
+                title={t("filters.zone")}
                 options={zoneOptionList}
                 selected={draft.zones}
                 onChange={(next) => setDraft((d) => ({ ...d, zones: next }))}
@@ -339,13 +346,13 @@ export default function FilterBar({ observations, filters, onChange }: FilterBar
                 }}
                 className="tap px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-600 dark:text-slate-300"
               >
-                Reset
+                {t("filters.reset")}
               </button>
               <button
                 onClick={applySheet}
                 className="tap flex-1 bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold"
               >
-                Apply Filters
+                {t("filters.apply")}
               </button>
             </div>
           </div>

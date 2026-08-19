@@ -8,6 +8,7 @@ import { stampPhoto } from "@/lib/photoStamp";
 import { addPendingObservation, isLikelyNetworkError } from "@/lib/offlineQueue";
 import { CATEGORIES } from "@/types";
 import type { ObservationPriority } from "@/types";
+import { useT, categoryLabel, type TranslationKey } from "@/lib/i18n";
 
 interface ObservationFormProps {
   lng: number;
@@ -32,17 +33,17 @@ function nowForDateTimeLocalInput(): string {
 
 // Turns a raw Supabase/Postgres error into something a non-technical user
 // can actually act on, instead of a cryptic one-liner.
-function explainError(err: unknown): string {
+function explainError(err: unknown, t: (key: TranslationKey, vars?: Record<string, string | number>) => string): string {
   if (err && typeof err === "object") {
     const e = err as { message?: string; details?: string; hint?: string; code?: string };
     const parts = [e.message, e.details, e.hint].filter(Boolean);
     const full = parts.join(" — ");
     if (full.toLowerCase().includes("row-level security") || e.code === "42501") {
-      return `Permission denied: your account role isn't allowed to create observations. Ask an admin to check your role on the "Manage Users" page. (${full})`;
+      return t("obsForm.permissionDenied", { details: full });
     }
     if (full) return full;
   }
-  return err instanceof Error ? err.message : "Failed to create observation";
+  return err instanceof Error ? err.message : t("obsForm.createFailed");
 }
 
 export default function ObservationForm({
@@ -55,6 +56,7 @@ export default function ObservationForm({
   onCancel,
   onQueued,
 }: ObservationFormProps) {
+  const { t } = useT();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<string>(CATEGORIES[0]);
@@ -193,9 +195,7 @@ export default function ObservationForm({
             photo: uploadPhoto,
           });
           setSubmitting(false);
-          onQueued?.(
-            "الاتصال ضعيف — تم حفظ الملاحظة على جهازك وسيتم إرسالها تلقائيًا. راجع الإعدادات لمتابعتها."
-          );
+          onQueued?.(t("obsForm.queuedMessage"));
           onCreated();
           return;
         } catch (queueErr) {
@@ -204,7 +204,7 @@ export default function ObservationForm({
           // person sees *something* went wrong instead of silence.
         }
       }
-      setError(explainError(err));
+      setError(explainError(err, t));
       setSubmitting(false);
     }
   }
@@ -224,25 +224,25 @@ export default function ObservationForm({
               />
             </svg>
           </div>
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Observation saved</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{t("obsForm.savedToast")}</p>
         </div>
       )}
 
       <div className="shrink-0 flex items-start justify-between gap-3 px-5 pt-5 pb-3 pt-safe border-b border-slate-100 dark:border-slate-800">
         <div>
-          <h3 className="text-lg font-semibold">New Safety Observation</h3>
+          <h3 className="text-lg font-semibold">{t("obsForm.newTitle")}</h3>
           {zoneName && (
-            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">📍 Zone detected: {zoneName}</p>
+            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">{t("obsForm.zoneDetected", { zone: zoneName })}</p>
           )}
           {!zoneName && (
-            <p className="text-sm text-gray-400 mt-1">📍 Outside known project zones</p>
+            <p className="text-sm text-gray-400 mt-1">{t("obsForm.outsideZones")}</p>
           )}
         </div>
         <button
           type="button"
           onClick={onCancel}
           className="tap shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-xl leading-none px-1"
-          aria-label="Cancel"
+          aria-label={t("obsForm.cancel")}
         >
           ✕
         </button>
@@ -250,7 +250,7 @@ export default function ObservationForm({
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
         <div>
-          <label htmlFor="obs-title" className="block text-sm font-medium mb-1">Title</label>
+          <label htmlFor="obs-title" className="block text-sm font-medium mb-1">{t("obsForm.fieldTitle")}</label>
           <input
             id="obs-title"
             name="title"
@@ -258,13 +258,13 @@ export default function ObservationForm({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
-            placeholder="e.g. Worker without harness at height"
+            placeholder={t("obsForm.titlePlaceholder")}
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="obs-category" className="block text-sm font-medium mb-1">Category</label>
+            <label htmlFor="obs-category" className="block text-sm font-medium mb-1">{t("obsForm.category")}</label>
             <select
               id="obs-category"
               name="category"
@@ -274,14 +274,14 @@ export default function ObservationForm({
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {categoryLabel(t, c)}
                 </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label htmlFor="obs-priority" className="block text-sm font-medium mb-1">Priority</label>
+            <label htmlFor="obs-priority" className="block text-sm font-medium mb-1">{t("obsForm.priority")}</label>
             <select
               id="obs-priority"
               name="priority"
@@ -289,16 +289,16 @@ export default function ObservationForm({
               onChange={(e) => setPriority(e.target.value as ObservationPriority)}
               className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
             >
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
+              <option value="low">{t("priority.low")}</option>
+              <option value="medium">{t("priority.medium")}</option>
+              <option value="high">{t("priority.high")}</option>
+              <option value="critical">{t("priority.critical")}</option>
             </select>
           </div>
         </div>
 
         <div>
-          <label htmlFor="obs-description" className="block text-sm font-medium mb-1">Description</label>
+          <label htmlFor="obs-description" className="block text-sm font-medium mb-1">{t("obsForm.description")}</label>
           <textarea
             id="obs-description"
             name="description"
@@ -306,14 +306,14 @@ export default function ObservationForm({
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
-            placeholder="What did you observe?"
+            placeholder={t("obsForm.descriptionPlaceholder")}
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="obs-contractor" className="block text-sm font-medium mb-1">
-              Assigned Safety Officer / Contractor
+              {t("obsForm.assignedContractor")}
             </label>
             <input
               id="obs-contractor"
@@ -321,11 +321,11 @@ export default function ObservationForm({
               value={assignedContractor}
               onChange={(e) => setAssignedContractor(e.target.value)}
               className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
-              placeholder="Company name"
+              placeholder={t("obsForm.companyPlaceholder")}
             />
           </div>
           <div>
-            <label htmlFor="obs-due-date" className="block text-sm font-medium mb-1">Due Date &amp; Time</label>
+            <label htmlFor="obs-due-date" className="block text-sm font-medium mb-1">{t("obsForm.dueDate")}</label>
             <input
               id="obs-due-date"
               name="due_date"
@@ -338,7 +338,7 @@ export default function ObservationForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Photo</label>
+          <label className="block text-sm font-medium mb-1">{t("obsForm.photo")}</label>
           <div className="flex gap-2">
             <input
               ref={cameraInputRef}
@@ -370,19 +370,19 @@ export default function ObservationForm({
               onClick={() => cameraInputRef.current?.click()}
               className="tap flex-1 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5"
             >
-              📷 Take Photo
+              {t("obsForm.takePhoto")}
             </button>
             <button
               type="button"
               onClick={() => galleryInputRef.current?.click()}
               className="tap flex-1 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5"
             >
-              🖼️ From Gallery
+              {t("obsForm.fromGallery")}
             </button>
           </div>
 
           {stampingPhoto && (
-            <p className="text-xs text-slate-400 mt-2">Stamping photo...</p>
+            <p className="text-xs text-slate-400 mt-2">{t("obsForm.stampingPhoto")}</p>
           )}
           {!stampingPhoto && photoPreviewUrl && (
             <div className="mt-2 relative inline-block">
@@ -399,7 +399,7 @@ export default function ObservationForm({
                   setPhotoFile(null);
                   setPhotoPreviewUrl(null);
                 }}
-                aria-label="Remove photo"
+                aria-label={t("obsForm.removePhoto")}
                 className="tap absolute -top-2 -right-2 w-6 h-6 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center shadow"
               >
                 ✕
@@ -427,14 +427,14 @@ export default function ObservationForm({
               <path d="M21 12a9 9 0 0 0-9-9" stroke="white" strokeWidth="3" strokeLinecap="round" />
             </svg>
           )}
-          {submitting ? "Saving..." : "Create Observation"}
+          {submitting ? t("obsForm.saving") : t("obsForm.createObservation")}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="tap px-4 py-3 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-xl"
         >
-          Cancel
+          {t("obsForm.cancel")}
         </button>
       </div>
     </form>

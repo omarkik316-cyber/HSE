@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { useSettings, type BasemapMode, type TextSizeMode, type ThemeMode } from "@/lib/settings";
+import { useSettings, type BasemapMode, type TextSizeMode, type ThemeMode, type LanguageMode } from "@/lib/settings";
 import BottomNav from "@/components/BottomNav";
 import PendingUploads from "@/components/PendingUploads";
 import type { Profile } from "@/types";
-import { ROLE_LABELS } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 import {
   estimateOfflineDownload,
@@ -18,6 +17,7 @@ import {
 } from "@/lib/offlineMap";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { cacheProfile, getCachedProfile } from "@/lib/localCache";
+import { useT, roleLabel } from "@/lib/i18n";
 
 function SegmentedControl<T extends string>({
   value,
@@ -82,7 +82,8 @@ function SettingsRow({
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { theme, setTheme, basemap, setBasemap, textSize, setTextSize } = useSettings();
+  const { theme, setTheme, basemap, setBasemap, textSize, setTextSize, language, setLanguage } = useSettings();
+  const { t } = useT();
   const isOnline = useOnlineStatus();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -114,7 +115,7 @@ export default function SettingsPage() {
       await downloadOfflineMap((p) => setProgress(p), controller.signal);
       refreshCacheInfo();
     } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : "Download failed");
+      setDownloadError(err instanceof Error ? err.message : t("settings.downloadFailed"));
     } finally {
       setDownloading(false);
       abortRef.current = null;
@@ -165,8 +166,8 @@ export default function SettingsPage() {
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
         <div className="text-center space-y-3">
-          <p className="text-lg font-medium">Please sign in</p>
-          <a href="/login" className="text-blue-600 dark:text-blue-400 underline">Go to login page</a>
+          <p className="text-lg font-medium">{t("common.pleaseSignIn")}</p>
+          <a href="/login" className="text-blue-600 dark:text-blue-400 underline">{t("common.goToLogin")}</a>
         </div>
       </div>
     );
@@ -175,14 +176,14 @@ export default function SettingsPage() {
   return (
     <div className="h-dvh flex flex-col bg-slate-50 dark:bg-slate-950">
       <header className="shrink-0 bg-slate-900 dark:bg-black text-white px-4 pt-safe pb-3 pt-3">
-        <h1 className="font-semibold text-[15px]">Settings</h1>
+        <h1 className="font-semibold text-[15px]">{t("settings.title")}</h1>
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
         <PendingUploads />
 
         {profile && (
-          <SettingsGroup title="Account">
+          <SettingsGroup title={t("settings.account")}>
             <div className="px-4 py-4 flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-base shrink-0">
                 {profile.full_name?.[0]?.toUpperCase() ?? "?"}
@@ -192,7 +193,7 @@ export default function SettingsPage() {
                   {profile.full_name}
                 </p>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
-                  {ROLE_LABELS[profile.role]}
+                  {roleLabel(t, profile.role)}
                   {profile.company ? ` · ${profile.company}` : ""}
                 </p>
               </div>
@@ -200,69 +201,87 @@ export default function SettingsPage() {
           </SettingsGroup>
         )}
 
-        <SettingsGroup title="Appearance">
+        <SettingsGroup title={t("settings.appearance")}>
           <SettingsRow
-            label="Theme"
-            description="Match your device or pick one"
+            label={t("settings.theme")}
+            description={t("settings.themeDesc")}
             control={
               <SegmentedControl<ThemeMode>
                 value={theme}
                 onChange={setTheme}
                 options={[
-                  { value: "light", label: "Light" },
-                  { value: "dark", label: "Dark" },
-                  { value: "system", label: "Auto" },
+                  { value: "light", label: t("settings.light") },
+                  { value: "dark", label: t("settings.dark") },
+                  { value: "system", label: t("settings.auto") },
                 ]}
               />
             }
           />
           <SettingsRow
-            label="Text Size"
-            description="Larger text across the app"
+            label={t("settings.textSize")}
+            description={t("settings.textSizeDesc")}
             control={
               <SegmentedControl<TextSizeMode>
                 value={textSize}
                 onChange={setTextSize}
                 options={[
-                  { value: "standard", label: "Standard" },
-                  { value: "large", label: "Large" },
+                  { value: "standard", label: t("settings.standard") },
+                  { value: "large", label: t("settings.large") },
+                ]}
+              />
+            }
+          />
+          <SettingsRow
+            label={t("settings.language")}
+            description={t("settings.languageDesc")}
+            control={
+              <SegmentedControl<LanguageMode>
+                value={language}
+                onChange={setLanguage}
+                options={[
+                  { value: "en", label: "English" },
+                  { value: "ar", label: "العربية" },
+                  { value: "zh", label: "中文" },
                 ]}
               />
             }
           />
         </SettingsGroup>
 
-        <SettingsGroup title="Map">
+        <SettingsGroup title={t("settings.map")}>
           <SettingsRow
-            label="Default Basemap"
-            description="Imagery or street map style"
+            label={t("settings.defaultBasemap")}
+            description={t("settings.basemapDesc")}
             control={
               <SegmentedControl<BasemapMode>
                 value={basemap}
                 onChange={setBasemap}
                 options={[
-                  { value: "satellite", label: "Satellite" },
-                  { value: "streets", label: "Streets" },
+                  { value: "satellite", label: t("settings.satellite") },
+                  { value: "streets", label: t("settings.streets") },
                 ]}
               />
             }
           />
         </SettingsGroup>
 
-        <SettingsGroup title="Offline Map">
+        <SettingsGroup title={t("settings.offlineMap")}>
           <div className="px-4 py-3.5 space-y-3">
             <div>
               <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                Download project area for offline use
+                {t("settings.downloadTitle")}
               </p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                 {cachedTiles && cachedTiles > 0
-                  ? `${cachedTiles.toLocaleString()} map tiles saved on this device — the map keeps working with zero signal.`
-                  : "Not downloaded yet — download once on Wi-Fi, then the map works fully offline from then on."}
+                  ? t("settings.downloadDescCached", { n: cachedTiles.toLocaleString() })
+                  : t("settings.downloadDescNotCached")}
               </p>
               {estimate && !downloading && (
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                  ~{estimate.tileCount.toLocaleString()} tiles, approx. {estimate.approxMB} MB. Use Wi-Fi.
+                  {t("settings.estimateLine", {
+                    tiles: estimate.tileCount.toLocaleString(),
+                    mb: estimate.approxMB,
+                  })}
                 </p>
               )}
             </div>
@@ -276,8 +295,11 @@ export default function SettingsPage() {
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                  {progress.done.toLocaleString()} / {progress.total.toLocaleString()} tiles
-                  {progress.failed > 0 ? ` · ${progress.failed} failed (will retry next time)` : ""}
+                  {t("settings.progressLine", {
+                    done: progress.done.toLocaleString(),
+                    total: progress.total.toLocaleString(),
+                  })}
+                  {progress.failed > 0 ? t("settings.progressFailed", { n: progress.failed }) : ""}
                 </p>
               </div>
             )}
@@ -290,7 +312,7 @@ export default function SettingsPage() {
                   onClick={handleCancelDownload}
                   className="tap flex-1 text-xs font-semibold py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               ) : (
                 <button
@@ -298,7 +320,7 @@ export default function SettingsPage() {
                   disabled={!isOnline}
                   className="tap flex-1 text-xs font-semibold py-2.5 rounded-xl bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white"
                 >
-                  {cachedTiles && cachedTiles > 0 ? "Re-download / Update" : "Download for offline"}
+                  {cachedTiles && cachedTiles > 0 ? t("settings.redownload") : t("settings.downloadForOffline")}
                 </button>
               )}
               {!downloading && cachedTiles !== null && cachedTiles > 0 && (
@@ -306,7 +328,7 @@ export default function SettingsPage() {
                   onClick={handleClearOffline}
                   className="tap text-xs font-semibold py-2.5 px-3 rounded-xl border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400"
                 >
-                  Clear
+                  {t("settings.clear")}
                 </button>
               )}
             </div>
@@ -318,7 +340,7 @@ export default function SettingsPage() {
                 point of this feature. */}
             {!isOnline && (
               <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                يحتاج التحميل الأول اتصال بالنت — وصّلها بشبكة قوية وحمّل الخريطة قبل ما تنزل الموقع.
+                {t("settings.offlineNeedsNet")}
               </p>
             )}
           </div>
@@ -326,12 +348,12 @@ export default function SettingsPage() {
 
         <SettingsGroup>
           <button onClick={handleSignOut} className="tap w-full px-4 py-3.5 text-sm font-medium text-red-600 dark:text-red-400 text-center">
-            Sign Out
+            {t("settings.signOut")}
           </button>
         </SettingsGroup>
 
         <p className="text-center text-[11px] text-slate-400 dark:text-slate-600 pt-2 pb-4">
-          HSE Observation System · v1.0
+          {t("settings.footer")}
         </p>
       </div>
 

@@ -5,20 +5,26 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 export type ThemeMode = "light" | "dark" | "system";
 export type BasemapMode = "satellite" | "streets";
 export type TextSizeMode = "standard" | "large";
+export type LanguageMode = "en" | "ar" | "zh";
 
 interface Settings {
   theme: ThemeMode;
   basemap: BasemapMode;
   textSize: TextSizeMode;
+  language: LanguageMode;
 }
 
 interface SettingsContextValue extends Settings {
   setTheme: (theme: ThemeMode) => void;
   setBasemap: (basemap: BasemapMode) => void;
   setTextSize: (size: TextSizeMode) => void;
+  setLanguage: (language: LanguageMode) => void;
 }
 
-const DEFAULTS: Settings = { theme: "system", basemap: "satellite", textSize: "standard" };
+// English is the app's default/base language now — Arabic and Chinese are
+// opt-in from Settings rather than the starting language, since most of
+// this deployment's day-to-day users work in English.
+const DEFAULTS: Settings = { theme: "system", basemap: "satellite", textSize: "standard", language: "en" };
 const STORAGE_KEY = "hse-app-settings";
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -46,6 +52,16 @@ function applyTextSizeToDocument(size: TextSizeMode) {
   document.documentElement.style.fontSize = size === "large" ? "18px" : "16px";
 }
 
+// Arabic is the only one of the three that reads right-to-left — this is
+// what actually flips the whole layout (nav order, alignment, icon
+// mirroring) via the browser's native `dir` handling, not per-component
+// CSS.
+function applyLanguageToDocument(language: LanguageMode) {
+  const root = document.documentElement;
+  root.lang = language;
+  root.dir = language === "ar" ? "rtl" : "ltr";
+}
+
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [hydrated, setHydrated] = useState(false);
@@ -60,6 +76,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (!hydrated) return;
     applyThemeToDocument(settings.theme);
     applyTextSizeToDocument(settings.textSize);
+    applyLanguageToDocument(settings.language);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings, hydrated]);
 
@@ -75,10 +92,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const setTheme = useCallback((theme: ThemeMode) => setSettings((s) => ({ ...s, theme })), []);
   const setBasemap = useCallback((basemap: BasemapMode) => setSettings((s) => ({ ...s, basemap })), []);
   const setTextSize = useCallback((textSize: TextSizeMode) => setSettings((s) => ({ ...s, textSize })), []);
+  const setLanguage = useCallback((language: LanguageMode) => setSettings((s) => ({ ...s, language })), []);
 
   const value = useMemo(
-    () => ({ ...settings, setTheme, setBasemap, setTextSize }),
-    [settings, setTheme, setBasemap, setTextSize]
+    () => ({ ...settings, setTheme, setBasemap, setTextSize, setLanguage }),
+    [settings, setTheme, setBasemap, setTextSize, setLanguage]
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
@@ -94,6 +112,7 @@ export function useSettings(): SettingsContextValue {
       setTheme: () => {},
       setBasemap: () => {},
       setTextSize: () => {},
+      setLanguage: () => {},
     };
   }
   return ctx;

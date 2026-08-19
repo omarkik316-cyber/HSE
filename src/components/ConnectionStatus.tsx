@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n";
 
 type Quality = "checking" | "offline" | "weak" | "strong";
 
@@ -80,14 +81,12 @@ function useConnectionQuality(): Quality {
 // supports, not a failure, and "weak" gets an equally calm treatment.
 // "strong" isn't rendered at all — a banner with nothing actionable to
 // say is just noise once the connection is fine.
-const CONFIG: Record<Exclude<Quality, "checking" | "strong">, { label: string; dot: string; bg: string }> = {
+const STYLES: Record<Exclude<Quality, "checking" | "strong">, { dot: string; bg: string }> = {
   weak: {
-    label: "اتصال ضعيف — قد تتأخر بعض العمليات",
     dot: "bg-amber-500",
     bg: "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
   },
   offline: {
-    label: "غير متصل — تقدر تواصل العمل وسيتم الحفظ والإرسال تلقائيًا",
     dot: "bg-slate-400",
     bg: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
   },
@@ -95,12 +94,14 @@ const CONFIG: Record<Exclude<Quality, "checking" | "strong">, { label: string; d
 
 export default function ConnectionStatus() {
   const quality = useConnectionQuality();
+  const { t } = useT();
 
   // Nothing to show for "checking" (first render) or "strong" (nothing
   // actionable to say) — the banner only appears when it's worth reading.
   if (quality === "checking" || quality === "strong") return null;
 
-  const { label, dot, bg } = CONFIG[quality];
+  const { dot, bg } = STYLES[quality];
+  const label = quality === "weak" ? t("conn.weak") : t("conn.offline");
 
   return (
     <div

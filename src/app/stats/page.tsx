@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { cacheProfile, getCachedProfile, cacheObservations, getCachedObservations } from "@/lib/localCache";
 import type { Observation, Profile, ObservationPriority } from "@/types";
-import { ROLE_LABELS } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 import BottomNav from "@/components/BottomNav";
+import { useT, roleLabel, priorityLabel } from "@/lib/i18n";
 import {
   ResponsiveContainer,
   BarChart,
@@ -26,7 +26,6 @@ function startOfDay(d: Date): Date {
 }
 
 interface WeekWindow {
-  label: string;
   start: Date;
   end: Date; // exclusive
 }
@@ -42,8 +41,8 @@ function getWeekWindows(): { thisWeek: WeekWindow; lastWeek: WeekWindow } {
   lastWeekStart.setDate(lastWeekStart.getDate() - 7);
 
   return {
-    thisWeek: { label: "This Week", start: thisWeekStart, end: new Date(todayEnd.getTime() + 1) },
-    lastWeek: { label: "Last Week", start: lastWeekStart, end: lastWeekEnd },
+    thisWeek: { start: thisWeekStart, end: new Date(todayEnd.getTime() + 1) },
+    lastWeek: { start: lastWeekStart, end: lastWeekEnd },
   };
 }
 
@@ -77,18 +76,19 @@ function computeStats(observations: Observation[], window: WeekWindow): WeekStat
 }
 
 function Delta({ current, previous }: { current: number; previous: number }) {
+  const { t } = useT();
   if (previous === 0 && current === 0) {
-    return <span className="text-xs text-slate-400">no change</span>;
+    return <span className="text-xs text-slate-400">{t("stats.noChange")}</span>;
   }
   if (previous === 0) {
-    return <span className="text-xs text-green-600 font-medium">▲ new</span>;
+    return <span className="text-xs text-green-600 font-medium">{t("stats.newBadge")}</span>;
   }
   const pct = Math.round(((current - previous) / previous) * 100);
-  if (pct === 0) return <span className="text-xs text-slate-400">no change</span>;
+  if (pct === 0) return <span className="text-xs text-slate-400">{t("stats.noChange")}</span>;
   const up = pct > 0;
   return (
     <span className={`text-xs font-medium ${up ? "text-red-600" : "text-green-600"}`}>
-      {up ? "▲" : "▼"} {Math.abs(pct)}% vs last week
+      {up ? "▲" : "▼"} {Math.abs(pct)}% {t("stats.vsLastWeek")}
     </span>
   );
 }
@@ -102,6 +102,7 @@ const PRIORITY_COLORS: Record<ObservationPriority, string> = {
 };
 
 export default function StatsPage() {
+  const { t } = useT();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
@@ -160,14 +161,20 @@ export default function StatsPage() {
   const thisWeekStats = useMemo(() => computeStats(observations, thisWeek), [observations, thisWeek]);
   const lastWeekStats = useMemo(() => computeStats(observations, lastWeek), [observations, lastWeek]);
 
-  // Grouped bar chart data: This Week vs Last Week, for New/Closed/Critical
+  const thisWeekLabel = t("stats.thisWeek");
+  const lastWeekLabel = t("stats.lastWeek");
+
+  // Grouped bar chart data: This Week vs Last Week, for New/Closed/Critical.
+  // The object keys stay in English (they're just data-series keys recharts
+  // uses internally) — display text comes from the translated `name` prop
+  // on each <Bar>, not from these keys.
   const comparisonChartData = useMemo(
     () => [
-      { metric: "New", "This Week": thisWeekStats.created, "Last Week": lastWeekStats.created },
-      { metric: "Closed", "This Week": thisWeekStats.closed, "Last Week": lastWeekStats.closed },
-      { metric: "Critical", "This Week": thisWeekStats.critical, "Last Week": lastWeekStats.critical },
+      { metric: t("stats.metricNew"), thisWeek: thisWeekStats.created, lastWeek: lastWeekStats.created },
+      { metric: t("stats.metricClosed"), thisWeek: thisWeekStats.closed, lastWeek: lastWeekStats.closed },
+      { metric: t("stats.metricCritical"), thisWeek: thisWeekStats.critical, lastWeek: lastWeekStats.critical },
     ],
-    [thisWeekStats, lastWeekStats]
+    [thisWeekStats, lastWeekStats, t]
   );
 
   // Priority breakdown chart data
@@ -185,13 +192,13 @@ export default function StatsPage() {
           new Date(o.created_at) >= lastWeek.start &&
           new Date(o.created_at) < lastWeek.end
       ).length;
-      return { priority: p, "This Week": inThis, "Last Week": inLast };
+      return { priorityRaw: p, priority: priorityLabel(t, p), thisWeek: inThis, lastWeek: inLast };
     });
-  }, [observations, thisWeek, lastWeek]);
+  }, [observations, thisWeek, lastWeek, t]);
 
   // 14-day daily trend: bar per day, colored by which week it falls in
   const dailyTrendData = useMemo(() => {
-    const days: { date: string; label: string; count: number; period: "This Week" | "Last Week" }[] = [];
+    const days: { date: string; label: string; count: number; isThisWeek: boolean }[] = [];
     for (let i = 13; i >= 0; i--) {
       const dayStart = startOfDay(new Date());
       dayStart.setDate(dayStart.getDate() - i);
@@ -207,7 +214,7 @@ export default function StatsPage() {
         date: dayStart.toISOString(),
         label: dayStart.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
         count,
-        period: i < 7 ? "This Week" : "Last Week",
+        isThisWeek: i < 7,
       });
     }
     return days;
@@ -224,8 +231,8 @@ export default function StatsPage() {
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
         <div className="text-center space-y-3">
-          <p className="text-lg font-medium">Please sign in</p>
-          <a href="/login" className="text-blue-600 dark:text-blue-400 underline">Go to login page</a>
+          <p className="text-lg font-medium">{t("common.pleaseSignIn")}</p>
+          <a href="/login" className="text-blue-600 dark:text-blue-400 underline">{t("common.goToLogin")}</a>
         </div>
       </div>
     );
@@ -234,26 +241,26 @@ export default function StatsPage() {
   return (
     <div className="h-dvh flex flex-col bg-slate-50 dark:bg-slate-950">
       <header className="shrink-0 bg-slate-900 dark:bg-black text-white px-4 pt-safe pb-3 pt-3">
-        <h1 className="font-semibold text-[15px]">Statistics — Week over Week</h1>
+        <h1 className="font-semibold text-[15px]">{t("stats.header")}</h1>
         {profile && (
           <p className="text-[11px] text-slate-400 mt-0.5">
-            {profile.full_name} · {ROLE_LABELS[profile.role]}
+            {profile.full_name} · {roleLabel(t, profile.role)}
           </p>
         )}
       </header>
 
       <div className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto p-4 space-y-6 pb-8">
         {loading ? (
-          <div className="text-center text-slate-400 py-12">Loading...</div>
+          <div className="text-center text-slate-400 py-12">{t("common.loading")}</div>
         ) : (
           <>
             {/* All-time totals */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Open", value: totals.open, color: "text-red-600" },
-                { label: "In Progress", value: totals.inProgress, color: "text-amber-600" },
-                { label: "Closed", value: totals.closed, color: "text-green-600" },
-                { label: "Total (all time)", value: totals.total, color: "text-slate-700" },
+                { label: t("stats.open"), value: totals.open, color: "text-red-600" },
+                { label: t("stats.inProgress"), value: totals.inProgress, color: "text-amber-600" },
+                { label: t("stats.closed"), value: totals.closed, color: "text-green-600" },
+                { label: t("stats.totalAllTime"), value: totals.total, color: "text-slate-700" },
               ].map((s) => (
                 <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 text-center">
                   <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
@@ -264,7 +271,7 @@ export default function StatsPage() {
 
             {/* 14-day daily trend chart */}
             <div>
-              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">Daily Trend — Last 14 Days</h2>
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">{t("stats.dailyTrend")}</h2>
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={dailyTrendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
@@ -273,21 +280,21 @@ export default function StatsPage() {
                     <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} />
                     <Tooltip
                       contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                      formatter={(value: number) => [value, "New observations"]}
+                      formatter={(value: number) => [value, t("stats.newObservations")]}
                     />
                     <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                       {dailyTrendData.map((d, i) => (
-                        <Cell key={i} fill={d.period === "This Week" ? "#2563eb" : "#cbd5e1"} />
+                        <Cell key={i} fill={d.isThisWeek ? "#2563eb" : "#cbd5e1"} />
                       ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="flex items-center gap-4 text-xs text-slate-500 justify-center mt-1">
                   <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-blue-600 inline-block" /> This week
+                    <span className="w-2.5 h-2.5 rounded-sm bg-blue-600 inline-block" /> {thisWeekLabel}
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-slate-300 inline-block" /> Last week
+                    <span className="w-2.5 h-2.5 rounded-sm bg-slate-300 inline-block" /> {lastWeekLabel}
                   </span>
                 </div>
               </div>
@@ -295,7 +302,7 @@ export default function StatsPage() {
 
             {/* This week vs last week comparison chart + numbers */}
             <div>
-              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">This Week vs Last Week</h2>
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">{t("stats.thisWeekVsLastWeek")}</h2>
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={comparisonChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
@@ -304,60 +311,60 @@ export default function StatsPage() {
                     <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="This Week" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Last Week" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="thisWeek" name={thisWeekLabel} fill="#2563eb" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="lastWeek" name={lastWeekLabel} fill="#cbd5e1" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4 mt-3">
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 space-y-3">
-                  <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase">This Week — detail</div>
+                  <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase">{t("stats.thisWeekDetail")}</div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-xl font-bold text-slate-800">{thisWeekStats.created}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">New observations</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{t("stats.newObservations")}</div>
                       <Delta current={thisWeekStats.created} previous={lastWeekStats.created} />
                     </div>
                     <div>
                       <div className="text-xl font-bold text-green-700">{thisWeekStats.closed}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Closed</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{t("stats.closed")}</div>
                       <Delta current={thisWeekStats.closed} previous={lastWeekStats.closed} />
                     </div>
                     <div>
                       <div className="text-xl font-bold text-red-700">{thisWeekStats.critical}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Critical raised</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{t("stats.criticalRaised")}</div>
                       <Delta current={thisWeekStats.critical} previous={lastWeekStats.critical} />
                     </div>
                     <div>
                       <div className="text-xl font-bold text-slate-800">
                         {thisWeekStats.avgCloseHours !== null ? `${thisWeekStats.avgCloseHours.toFixed(1)}h` : "—"}
                       </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Avg. time to close</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{t("stats.avgTimeToClose")}</div>
                     </div>
                   </div>
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 space-y-3">
-                  <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase">Last Week — detail</div>
+                  <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase">{t("stats.lastWeekDetail")}</div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-xl font-bold text-slate-500">{lastWeekStats.created}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">New observations</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{t("stats.newObservations")}</div>
                     </div>
                     <div>
                       <div className="text-xl font-bold text-slate-500">{lastWeekStats.closed}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Closed</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{t("stats.closed")}</div>
                     </div>
                     <div>
                       <div className="text-xl font-bold text-slate-500">{lastWeekStats.critical}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Critical raised</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{t("stats.criticalRaised")}</div>
                     </div>
                     <div>
                       <div className="text-xl font-bold text-slate-500">
                         {lastWeekStats.avgCloseHours !== null ? `${lastWeekStats.avgCloseHours.toFixed(1)}h` : "—"}
                       </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">Avg. time to close</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{t("stats.avgTimeToClose")}</div>
                     </div>
                   </div>
                 </div>
@@ -366,7 +373,7 @@ export default function StatsPage() {
 
             {/* Priority breakdown chart */}
             <div>
-              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">New Observations by Priority</h2>
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">{t("stats.priorityBreakdown")}</h2>
               <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={priorityChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
@@ -375,12 +382,12 @@ export default function StatsPage() {
                     <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="This Week" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="thisWeek" name={thisWeekLabel} radius={[4, 4, 0, 0]}>
                       {priorityChartData.map((row, i) => (
-                        <Cell key={i} fill={PRIORITY_COLORS[row.priority]} />
+                        <Cell key={i} fill={PRIORITY_COLORS[row.priorityRaw]} />
                       ))}
                     </Bar>
-                    <Bar dataKey="Last Week" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="lastWeek" name={lastWeekLabel} fill="#e2e8f0" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

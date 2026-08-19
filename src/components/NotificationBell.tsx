@@ -13,6 +13,8 @@ import {
   updateTemplate,
   deleteTemplate,
 } from "@/lib/notifications";
+import { useT } from "@/lib/i18n";
+import { useDateLocale } from "@/lib/dateLocale";
 
 interface NotificationBellProps {
   profile: Profile;
@@ -28,6 +30,8 @@ const TYPE_ICON: Record<NotificationRecord["type"], string> = {
 type View = "list" | "compose" | "templates";
 
 export default function NotificationBell({ profile, onOpenObservation }: NotificationBellProps) {
+  const { t } = useT();
+  const dateLocale = useDateLocale();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("list");
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
@@ -104,7 +108,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
 
   async function handleSend() {
     if (!composeTitle.trim() || !composeMessage.trim()) {
-      setComposeError("Add a title and a message before sending.");
+      setComposeError(t("notif.validationError"));
       return;
     }
     setSending(true);
@@ -124,17 +128,17 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
       setView("list");
       reload();
     } catch (err) {
-      setComposeError(err instanceof Error ? err.message : "Failed to send notification");
+      setComposeError(err instanceof Error ? err.message : t("notif.sendFailed"));
     } finally {
       setSending(false);
     }
   }
 
-  function startEditTemplate(t: NotificationTemplate | null) {
-    setEditingTemplate(t);
-    setTemplateDraftTitle(t?.title ?? "");
-    setTemplateDraftMessage(t?.message ?? "");
-    setAddingTemplate(!t);
+  function startEditTemplate(tpl: NotificationTemplate | null) {
+    setEditingTemplate(tpl);
+    setTemplateDraftTitle(tpl?.title ?? "");
+    setTemplateDraftMessage(tpl?.message ?? "");
+    setAddingTemplate(!tpl);
   }
 
   async function saveTemplateDraft() {
@@ -159,7 +163,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
       <button
         onClick={openPanel}
         className="tap relative w-8 h-8 rounded-full bg-slate-700/70 flex items-center justify-center shrink-0"
-        aria-label="Notifications"
+        aria-label={t("notif.aria")}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
           <path
@@ -187,14 +191,14 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
             {view === "list" && (
               <>
                 <div className="px-5 pb-1 flex items-center justify-between">
-                  <h3 className="text-base font-semibold">Notifications</h3>
+                  <h3 className="text-base font-semibold">{t("notif.title")}</h3>
                   <div className="flex items-center gap-3">
                     {profile.role === "admin" && (
                       <button
                         onClick={() => startCompose()}
                         className="tap text-xs font-semibold text-blue-600 dark:text-blue-400"
                       >
-                        + New
+                        {t("notif.new")}
                       </button>
                     )}
                     <button onClick={() => setOpen(false)} className="tap text-slate-400 text-lg px-1">
@@ -206,17 +210,17 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                 {unreadCount > 0 && (
                   <div className="px-5 py-1.5">
                     <button onClick={handleMarkAllRead} className="tap text-xs text-slate-500 dark:text-slate-400 underline">
-                      Clear all
+                      {t("notif.clearAll")}
                     </button>
                   </div>
                 )}
 
                 <div className="flex-1 overflow-y-auto px-2 py-2">
                   {loading && notifications.length === 0 && (
-                    <p className="text-center text-sm text-slate-400 py-8">Loading...</p>
+                    <p className="text-center text-sm text-slate-400 py-8">{t("notif.loading")}</p>
                   )}
                   {!loading && notifications.length === 0 && (
-                    <p className="text-center text-sm text-slate-400 py-8">No notifications yet.</p>
+                    <p className="text-center text-sm text-slate-400 py-8">{t("notif.none")}</p>
                   )}
                   {notifications.map((n) => (
                     <button
@@ -235,7 +239,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                             {n.title}
                           </span>
                           <span className="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0">
-                            {formatDistanceToNow(new Date(n.created_at))} ago
+                            {formatDistanceToNow(new Date(n.created_at), { locale: dateLocale, addSuffix: true })}
                           </span>
                         </span>
                         <span className="block text-xs text-slate-600 dark:text-slate-300 mt-0.5">
@@ -259,29 +263,29 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
               <div className="flex flex-col max-h-[80vh]">
                 <div className="px-5 pb-1 flex items-center justify-between">
                   <button onClick={() => setView("list")} className="tap text-sm text-blue-600 dark:text-blue-400">
-                    ← Back
+                    {t("common.back")}
                   </button>
-                  <h3 className="text-base font-semibold">New Notification</h3>
+                  <h3 className="text-base font-semibold">{t("notif.newNotification")}</h3>
                   <button
                     onClick={() => setView("templates")}
                     className="tap text-xs font-medium text-slate-500 dark:text-slate-400"
                   >
-                    Templates
+                    {t("notif.templates")}
                   </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4">
                   {templates.length > 0 && (
                     <div>
-                      <p className="text-xs font-semibold text-slate-400 uppercase mb-2">Quick templates</p>
+                      <p className="text-xs font-semibold text-slate-400 uppercase mb-2">{t("notif.quickTemplates")}</p>
                       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                        {templates.map((t) => (
+                        {templates.map((tpl) => (
                           <button
-                            key={t.id}
-                            onClick={() => startCompose(t)}
+                            key={tpl.id}
+                            onClick={() => startCompose(tpl)}
                             className="tap shrink-0 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300"
                           >
-                            {t.title}
+                            {tpl.title}
                           </button>
                         ))}
                       </div>
@@ -289,25 +293,25 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                   )}
 
                   <div>
-                    <label htmlFor="broadcast-title" className="block text-sm font-medium mb-1">Title</label>
+                    <label htmlFor="broadcast-title" className="block text-sm font-medium mb-1">{t("notif.broadcastTitle")}</label>
                     <input
                       id="broadcast-title"
                       name="broadcast_title"
                       value={composeTitle}
                       onChange={(e) => setComposeTitle(e.target.value)}
-                      placeholder="e.g. Site Walkthrough"
+                      placeholder={t("notif.broadcastTitlePlaceholder")}
                       className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
                     />
                   </div>
                   <div>
-                    <label htmlFor="broadcast-message" className="block text-sm font-medium mb-1">Message</label>
+                    <label htmlFor="broadcast-message" className="block text-sm font-medium mb-1">{t("notif.message")}</label>
                     <textarea
                       id="broadcast-message"
                       name="broadcast_message"
                       value={composeMessage}
                       onChange={(e) => setComposeMessage(e.target.value)}
                       rows={4}
-                      placeholder="What do you want everyone to know?"
+                      placeholder={t("notif.messagePlaceholder")}
                       className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
                     />
                   </div>
@@ -319,7 +323,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                       onChange={(e) => setSaveAsTemplate(e.target.checked)}
                       className="w-4 h-4 rounded accent-blue-600"
                     />
-                    Save this as a reusable template
+                    {t("notif.saveAsTemplate")}
                   </label>
 
                   {composeError && (
@@ -335,7 +339,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                     disabled={sending}
                     className="tap w-full bg-blue-600 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50"
                   >
-                    {sending ? "Sending..." : "Send to Everyone"}
+                    {sending ? t("notif.sending") : t("notif.sendToEveryone")}
                   </button>
                 </div>
               </div>
@@ -345,37 +349,37 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
               <div className="flex flex-col max-h-[80vh]">
                 <div className="px-5 pb-1 flex items-center justify-between">
                   <button onClick={() => setView("compose")} className="tap text-sm text-blue-600 dark:text-blue-400">
-                    ← Back
+                    {t("common.back")}
                   </button>
-                  <h3 className="text-base font-semibold">Manage Templates</h3>
+                  <h3 className="text-base font-semibold">{t("notif.manageTemplates")}</h3>
                   <button
                     onClick={() => startEditTemplate(null)}
                     className="tap text-xs font-semibold text-blue-600 dark:text-blue-400"
                   >
-                    + Add
+                    {t("notif.add")}
                   </button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
                   {(addingTemplate || editingTemplate) && (
                     <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2 bg-slate-50 dark:bg-slate-800/60">
-                      <label htmlFor="template-title" className="sr-only">Template title</label>
+                      <label htmlFor="template-title" className="sr-only">{t("notif.templateTitlePlaceholder")}</label>
                       <input
                         id="template-title"
                         name="template_title"
                         value={templateDraftTitle}
                         onChange={(e) => setTemplateDraftTitle(e.target.value)}
-                        placeholder="Template title"
+                        placeholder={t("notif.templateTitlePlaceholder")}
                         className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg px-2.5 py-2 text-sm"
                       />
-                      <label htmlFor="template-message" className="sr-only">Template message</label>
+                      <label htmlFor="template-message" className="sr-only">{t("notif.templateMessagePlaceholder")}</label>
                       <textarea
                         id="template-message"
                         name="template_message"
                         value={templateDraftMessage}
                         onChange={(e) => setTemplateDraftMessage(e.target.value)}
                         rows={3}
-                        placeholder="Template message"
+                        placeholder={t("notif.templateMessagePlaceholder")}
                         className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-lg px-2.5 py-2 text-sm"
                       />
                       <div className="flex gap-2">
@@ -383,7 +387,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                           onClick={saveTemplateDraft}
                           className="tap flex-1 bg-blue-600 text-white rounded-lg py-2 text-xs font-semibold"
                         >
-                          Save
+                          {t("common.save")}
                         </button>
                         <button
                           onClick={() => {
@@ -392,39 +396,39 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                           }}
                           className="tap px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
                         >
-                          Cancel
+                          {t("common.cancel")}
                         </button>
                       </div>
                     </div>
                   )}
 
-                  {templates.map((t) => (
+                  {templates.map((tpl) => (
                     <div
-                      key={t.id}
+                      key={tpl.id}
                       className="border border-slate-100 dark:border-slate-800 rounded-xl p-3 flex items-start justify-between gap-2"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{t.title}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{t.message}</p>
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{tpl.title}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{tpl.message}</p>
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <button
-                          onClick={() => startEditTemplate(t)}
+                          onClick={() => startEditTemplate(tpl)}
                           className="tap text-xs px-2 py-1 text-slate-500 dark:text-slate-400"
                         >
-                          Edit
+                          {t("common.edit")}
                         </button>
                         <button
-                          onClick={() => removeTemplate(t.id)}
+                          onClick={() => removeTemplate(tpl.id)}
                           className="tap text-xs px-2 py-1 text-red-600 dark:text-red-400"
                         >
-                          Delete
+                          {t("common.delete")}
                         </button>
                       </div>
                     </div>
                   ))}
                   {templates.length === 0 && !addingTemplate && (
-                    <p className="text-center text-sm text-slate-400 py-8">No templates yet.</p>
+                    <p className="text-center text-sm text-slate-400 py-8">{t("notif.noTemplates")}</p>
                   )}
                 </div>
                 <div className="pb-safe" />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { useT } from "@/lib/i18n";
 import type { Profile } from "@/types";
 
 interface TabDef {
@@ -66,6 +67,7 @@ function GearIcon({ active }: { active: boolean }) {
 export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useT();
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
@@ -88,14 +90,14 @@ export default function BottomNav() {
   }, []);
 
   const tabs: TabDef[] = [
-    { href: "/", label: "Map", icon: (a) => <MapIcon active={a} />, match: (p) => p === "/" },
-    { href: "/stats", label: "Stats", icon: (a) => <ChartIcon active={a} />, match: (p) => p.startsWith("/stats") },
+    { href: "/", label: t("nav.map"), icon: (a) => <MapIcon active={a} />, match: (p) => p === "/" },
+    { href: "/stats", label: t("nav.stats"), icon: (a) => <ChartIcon active={a} />, match: (p) => p.startsWith("/stats") },
   ];
 
   if (profile?.role === "admin") {
     tabs.push({
       href: "/admin/users",
-      label: "Users",
+      label: t("nav.users"),
       icon: (a) => <PeopleIcon active={a} />,
       match: (p) => p.startsWith("/admin"),
     });
@@ -103,7 +105,7 @@ export default function BottomNav() {
 
   tabs.push({
     href: "/settings",
-    label: "Settings",
+    label: t("nav.settings"),
     icon: (a) => <GearIcon active={a} />,
     match: (p) => p.startsWith("/settings"),
   });
@@ -112,7 +114,7 @@ export default function BottomNav() {
     <nav
       className="shrink-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe"
       role="navigation"
-      aria-label="Primary"
+      aria-label={t("nav.primary")}
     >
       <div className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
         {tabs.map((tab) => {

@@ -5,6 +5,8 @@ import type { Observation, ObservationPriority } from "@/types";
 import { StatusBadge, PriorityBadge } from "./StatusBadge";
 import { formatDistanceToNow } from "date-fns";
 import { isObservationOverdue } from "@/lib/overdue";
+import { useT, categoryLabel } from "@/lib/i18n";
+import { useDateLocale } from "@/lib/dateLocale";
 
 interface ObservationsListProps {
   observations: Observation[];
@@ -21,6 +23,8 @@ const PRIORITY_RANK: Record<ObservationPriority, number> = {
 };
 
 export default function ObservationsList({ observations, onSelect }: ObservationsListProps) {
+  const { t } = useT();
+  const dateLocale = useDateLocale();
   const [sortMode, setSortMode] = useState<SortMode>("priority_high");
 
   const sorted = useMemo(() => {
@@ -39,10 +43,12 @@ export default function ObservationsList({ observations, onSelect }: Observation
     <div className="h-full flex flex-col bg-white dark:bg-slate-900">
       <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 shrink-0">
         <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-          {observations.length} observation{observations.length === 1 ? "" : "s"}
+          {observations.length === 1
+            ? t("list.countOne", { n: observations.length })
+            : t("list.count", { n: observations.length })}
         </span>
         <div>
-          <label htmlFor="obs-sort" className="sr-only">Sort by</label>
+          <label htmlFor="obs-sort" className="sr-only">{t("list.sortLabel")}</label>
           <select
             id="obs-sort"
             name="sort"
@@ -50,16 +56,16 @@ export default function ObservationsList({ observations, onSelect }: Observation
             onChange={(e) => setSortMode(e.target.value as SortMode)}
             className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-800"
           >
-            <option value="priority_high">Priority: High → Low</option>
-            <option value="newest">Date: Newest first</option>
-            <option value="oldest">Date: Oldest first</option>
+            <option value="priority_high">{t("list.sortPriority")}</option>
+            <option value="newest">{t("list.sortNewest")}</option>
+            <option value="oldest">{t("list.sortOldest")}</option>
           </select>
         </div>
       </div>
 
       {sorted.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-sm text-slate-400 px-4 text-center">
-          No observations match the current filters.
+          {t("list.noMatches")}
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
@@ -80,7 +86,7 @@ export default function ObservationsList({ observations, onSelect }: Observation
                       {obs.title}
                     </span>
                     <span className="text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0">
-                      {formatDistanceToNow(new Date(obs.created_at))} ago
+                      {formatDistanceToNow(new Date(obs.created_at), { locale: dateLocale, addSuffix: true })}
                     </span>
                   </div>
 
@@ -88,11 +94,11 @@ export default function ObservationsList({ observations, onSelect }: Observation
                     <StatusBadge status={obs.status} />
                     <PriorityBadge priority={obs.priority} />
                     <span className="text-[11px] px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                      {obs.category}
+                      {categoryLabel(t, obs.category)}
                     </span>
                     {isConsultantReport && (
                       <span className="text-[11px] px-2 py-1 rounded-full bg-blue-600 text-white font-semibold">
-                        Consultant
+                        {t("list.consultant")}
                       </span>
                     )}
                     {obs.claimed_by_profile && (
@@ -102,7 +108,7 @@ export default function ObservationsList({ observations, onSelect }: Observation
                     )}
                     {isOverdue && (
                       <span className="text-[11px] px-2 py-1 rounded-full bg-red-600 text-white font-semibold">
-                        OVERDUE
+                        {t("list.overdue")}
                       </span>
                     )}
                   </div>

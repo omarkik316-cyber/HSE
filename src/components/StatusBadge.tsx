@@ -1,5 +1,7 @@
+"use client";
+
 import type { ObservationStatus, ObservationPriority } from "@/types";
-import { STATUS_LABELS } from "@/types";
+import { useT, statusLabel, priorityLabel } from "@/lib/i18n";
 
 const STATUS_STYLES: Record<ObservationStatus, string> = {
   open: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800",
@@ -16,17 +18,19 @@ const PRIORITY_STYLES: Record<ObservationPriority, string> = {
 };
 
 export function StatusBadge({ status }: { status: ObservationStatus }) {
+  const { t } = useT();
   return (
     <span className={`text-xs font-medium px-2 py-1 rounded-full border ${STATUS_STYLES[status]}`}>
-      {STATUS_LABELS[status]}
+      {statusLabel(t, status)}
     </span>
   );
 }
 
 export function PriorityBadge({ priority }: { priority: ObservationPriority }) {
+  const { t } = useT();
   return (
     <span className={`text-xs font-semibold px-2 py-1 rounded-full uppercase ${PRIORITY_STYLES[priority]}`}>
-      {priority}
+      {priorityLabel(t, priority)}
     </span>
   );
 }

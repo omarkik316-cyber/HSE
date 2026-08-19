@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { useT } from "@/lib/i18n";
 
 // Normalizes a Saudi-style local number into E.164 format that Supabase
 // requires, e.g. "0512345678" or "512345678" -> "+966512345678".
@@ -16,6 +17,7 @@ function toE164(raw: string): string {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useT();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -48,7 +50,7 @@ export default function LoginPage() {
       router.push("/");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      setError(err instanceof Error ? err.message : t("login.authFailed"));
     } finally {
       setLoading(false);
     }
@@ -65,9 +67,9 @@ export default function LoginPage() {
             🦺
           </div>
           <div className="text-center">
-            <h1 className="text-lg font-bold">HSE Observation System</h1>
+            <h1 className="text-lg font-bold">{t("login.title")}</h1>
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-              {mode === "signin" ? "Sign in to continue" : "Create your account"}
+              {mode === "signin" ? t("login.signInSubtitle") : t("login.signUpSubtitle")}
             </p>
           </div>
         </div>
@@ -83,7 +85,7 @@ export default function LoginPage() {
                 : "text-slate-500 dark:text-slate-400"
             }`}
           >
-            Sign In
+            {t("login.signIn")}
           </button>
           <button
             type="button"
@@ -94,20 +96,20 @@ export default function LoginPage() {
                 : "text-slate-500 dark:text-slate-400"
             }`}
           >
-            Sign Up
+            {t("login.signUp")}
           </button>
         </div>
 
         <div className="space-y-3">
           {mode === "signup" && (
             <div>
-              <label htmlFor="full-name" className="sr-only">Full name</label>
+              <label htmlFor="full-name" className="sr-only">{t("login.fullName")}</label>
               <input
                 id="full-name"
                 name="full_name"
                 required
                 autoComplete="name"
-                placeholder="Full name"
+                placeholder={t("login.fullName")}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-sm"
@@ -116,14 +118,14 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label htmlFor="phone" className="sr-only">Phone number</label>
+            <label htmlFor="phone" className="sr-only">{t("login.phone")}</label>
             <input
               id="phone"
               name="phone"
               required
               type="tel"
               autoComplete="tel"
-              placeholder="Phone number (e.g. 05xxxxxxxx or +9665xxxxxxxx)"
+              placeholder={t("login.phonePlaceholder")}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               dir="ltr"
@@ -132,14 +134,14 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="sr-only">Password</label>
+            <label htmlFor="password" className="sr-only">{t("login.password")}</label>
             <input
               id="password"
               name="password"
               required
               type="password"
               autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              placeholder="Password"
+              placeholder={t("login.password")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-4 py-3 text-sm"
@@ -157,12 +159,11 @@ export default function LoginPage() {
           disabled={loading}
           className="tap w-full bg-blue-600 text-white rounded-xl py-3.5 text-sm font-semibold disabled:opacity-50"
         >
-          {loading ? "Please wait..." : mode === "signin" ? "Sign In" : "Sign Up"}
+          {loading ? t("common.pleaseWait") : mode === "signin" ? t("login.signIn") : t("login.signUp")}
         </button>
 
         <p className="text-[11px] text-center text-gray-400 dark:text-slate-500">
-          New accounts default to &quot;Safety Officer / Contractor&quot;. An admin can change your
-          role from the &quot;Users&quot; tab after you sign up.
+          {t("login.footer")}
         </p>
       </form>
     </div>

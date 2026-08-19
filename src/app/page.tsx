@@ -13,25 +13,32 @@ import BottomNav from "@/components/BottomNav";
 import NotificationBell from "@/components/NotificationBell";
 import { startAutoSync, subscribeQueue, getPendingObservations } from "@/lib/offlineQueue";
 import { cacheProfile, getCachedProfile, cacheObservations, getCachedObservations } from "@/lib/localCache";
+import { useT } from "@/lib/i18n";
 import type { Observation, Profile } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 
 // Leaflet touches `window`/`document` at import time, which breaks Next.js's
 // server-side render pass. Loading it only on the client (ssr: false) fixes
 // the "500 Internal Server Error" / "appendChild of undefined" crash.
+function MapLoadingFallback() {
+  const { t } = useT();
+  return (
+    <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
+      {t("dashboard.loadingMap")}
+    </div>
+  );
+}
+
 const MapView = dynamic(() => import("@/components/MapView"), {
   ssr: false,
-  loading: () => (
-    <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
-      Loading map...
-    </div>
-  ),
+  loading: MapLoadingFallback,
 });
 
 type PendingPin = { lng: number; lat: number; zoneName: string | null } | null;
 
 export default function DashboardPage() {
   const { basemap } = useSettings();
+  const { t } = useT();
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
@@ -155,7 +162,7 @@ export default function DashboardPage() {
       // and don't silently do nothing either. Tell the person to wait a
       // beat instead of it looking broken.
       if (profileLoading) {
-        setToast("Still loading your account — try tapping again in a second.");
+        setToast(t("dashboard.stillLoadingAccount"));
         return;
       }
 
@@ -164,16 +171,14 @@ export default function DashboardPage() {
       const canCreate =
         profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin";
       if (!canCreate) {
-        setToast(
-          `Your role can't create new observations. Ask an admin to change your role on the "Users" tab if this is wrong.`
-        );
+        setToast(t("dashboard.roleCannotCreate"));
         return;
       }
       setListOpen(false);
       setSelectedObs(null);
       setPendingPin({ lng, lat, zoneName });
     },
-    [profile, profileLoading]
+    [profile, profileLoading, t]
   );
 
   // Auto-dismiss the toast after a few seconds.
@@ -198,19 +203,19 @@ export default function DashboardPage() {
         setPendingPin(null);
         setSelectedObs(obs);
       } else {
-        setToast("That observation couldn't be found — it may have been removed.");
+        setToast(t("dashboard.observationNotFound"));
       }
     },
-    [observations]
+    [observations, t]
   );
 
   if (!session) {
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
         <div className="text-center space-y-3">
-          <p className="text-lg font-medium">Please sign in</p>
+          <p className="text-lg font-medium">{t("common.pleaseSignIn")}</p>
           <a href="/login" className="text-blue-600 dark:text-blue-400 underline">
-            Go to login page
+            {t("common.goToLogin")}
           </a>
         </div>
       </div>
@@ -226,7 +231,7 @@ export default function DashboardPage() {
       {/* Compact app bar — a single line, no wrapping buttons. */}
       <header className="shrink-0 bg-slate-900 dark:bg-black text-white px-4 pt-safe pb-2.5 pt-3 flex items-center justify-between">
         <div className="min-w-0">
-          <h1 className="font-semibold text-[15px] leading-tight truncate">HSE Observations</h1>
+          <h1 className="font-semibold text-[15px] leading-tight truncate">{t("dashboard.headerTitle")}</h1>
           {profile && (
             <p className="text-[11px] text-slate-400 truncate">{profile.full_name}</p>
           )}
@@ -236,7 +241,7 @@ export default function DashboardPage() {
           <a
             href="/settings"
             className="tap relative w-8 h-8 rounded-full bg-slate-700/70 flex items-center justify-center text-sm font-semibold shrink-0"
-            aria-label="Settings"
+            aria-label={t("dashboard.settings")}
           >
             {profile?.full_name?.[0]?.toUpperCase() ?? "•"}
             {pendingCount > 0 && (
@@ -280,7 +285,7 @@ export default function DashboardPage() {
           />
           {canCreate && !pendingPin && !selectedObs && !listOpen && (
             <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:max-w-xs bg-white/95 dark:bg-slate-900/90 backdrop-blur px-3 py-2 rounded-xl shadow text-xs text-slate-600 dark:text-slate-300">
-              Tap anywhere on the map to log a new observation
+              {t("dashboard.tapToCreate")}
             </div>
           )}
         </div>
@@ -295,7 +300,7 @@ export default function DashboardPage() {
             }}
             className="tap absolute bottom-4 right-4 z-20 bg-slate-900 dark:bg-blue-600 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg flex items-center gap-1.5"
           >
-            📋 Observations ({filteredObservations.length})
+            📋 {t("dashboard.observationsButton", { n: filteredObservations.length })}
           </button>
         )}
 
@@ -305,11 +310,11 @@ export default function DashboardPage() {
           <div className="absolute inset-x-0 bottom-0 z-20 h-1/2 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 shadow-2xl rounded-t-3xl overflow-hidden flex flex-col animate-sheet-up">
             <div className="sheet-handle shrink-0" />
             <div className="flex items-center justify-between px-4 py-1.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
-              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Observations List</span>
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t("dashboard.observationsListTitle")}</span>
               <button
                 onClick={() => setListOpen(false)}
                 className="tap text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-lg leading-none px-2"
-                aria-label="Close list"
+                aria-label={t("dashboard.closeList")}
               >
                 ▼
               </button>
