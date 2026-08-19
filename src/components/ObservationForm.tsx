@@ -6,6 +6,7 @@ import { notifyObservationCreated } from "@/lib/notifications";
 import { compressImage } from "@/lib/imageCompress";
 import { stampPhoto } from "@/lib/photoStamp";
 import { addPendingObservation, isLikelyNetworkError } from "@/lib/offlineQueue";
+import CameraCapture from "./CameraCapture";
 import { CATEGORIES } from "@/types";
 import type { ObservationPriority } from "@/types";
 import { useT, categoryLabel, type TranslationKey } from "@/lib/i18n";
@@ -73,6 +74,9 @@ export default function ObservationForm({
   const [showSuccess, setShowSuccess] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  // Shown instead of the OS file chooser when the device supports
+  // getUserMedia — see CameraCapture for why this exists.
+  const [inAppCameraOpen, setInAppCameraOpen] = useState(false);
 
   // Object URLs need explicit cleanup or they leak for the life of the page.
   useEffect(() => {
@@ -367,7 +371,22 @@ export default function ObservationForm({
             />
             <button
               type="button"
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={() => {
+                // Prefer driving the camera ourselves — it's the only
+                // approach that behaves the same on every Android WebView.
+                // Devices/browsers without getUserMedia support (or where
+                // the person denies the permission prompt) fall back to
+                // the native file input below, same as before. Checked via
+                // typeof rather than a plain truthy/optional-chain check —
+                // TS's lib types assume `navigator.mediaDevices` always
+                // exists, but it's genuinely undefined in some real-world
+                // WebViews/insecure contexts.
+                if (typeof navigator.mediaDevices?.getUserMedia === "function") {
+                  setInAppCameraOpen(true);
+                } else {
+                  cameraInputRef.current?.click();
+                }
+              }}
               className="tap flex-1 border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5"
             >
               {t("obsForm.takePhoto")}
@@ -437,6 +456,20 @@ export default function ObservationForm({
           {t("obsForm.cancel")}
         </button>
       </div>
+
+      {inAppCameraOpen && (
+        <CameraCapture
+          onCapture={(file) => {
+            setInAppCameraOpen(false);
+            handlePhotoPicked(file);
+          }}
+          onCancel={() => setInAppCameraOpen(false)}
+          onError={() => {
+            setInAppCameraOpen(false);
+            cameraInputRef.current?.click();
+          }}
+        />
+      )}
     </form>
   );
 }
