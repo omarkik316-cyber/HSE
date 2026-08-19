@@ -24,6 +24,7 @@ export default function CameraCapture({ onCapture, onCancel, onError }: CameraCa
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
 
@@ -48,9 +49,18 @@ export default function CameraCapture({ onCapture, onCancel, onError }: CameraCa
         setReady(true);
       } catch {
         // Denied permission, no camera hardware, or an environment that
-        // doesn't support getUserMedia at all — hand back to the parent so
-        // it can fall back to the plain file input instead of dead-ending.
-        if (!cancelled) onError();
+        // claims getUserMedia support but doesn't really have it.
+        //
+        // IMPORTANT: we do NOT auto-trigger the native file-input fallback
+        // from here. This catch runs asynchronously, well after the tap
+        // that opened this screen — by then the browser's "this came from
+        // a real user tap" flag (user activation) has expired. Calling
+        // input.click() at this point gets silently ignored on most mobile
+        // browsers: nothing visibly happens, which is exactly the
+        // "opens for a moment then closes with nothing after it" behavior.
+        // Instead we show a real button; a tap on THAT button is a fresh,
+        // genuine user gesture, so the fallback click actually works.
+        if (!cancelled) setFailed(true);
       }
     }
 
@@ -103,13 +113,24 @@ export default function CameraCapture({ onCapture, onCancel, onError }: CameraCa
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       <div className="flex-1 relative overflow-hidden flex items-center justify-center">
-        {capturedUrl ? (
+        {failed ? (
+          <div className="px-8 text-center">
+            <p className="text-white text-sm leading-relaxed mb-5">{t("obsForm.cameraUnavailable")}</p>
+            <button
+              type="button"
+              onClick={onError}
+              className="tap inline-block text-sm font-semibold px-5 py-2.5 rounded-xl bg-blue-600 text-white"
+            >
+              {t("obsForm.useDevicePicker")}
+            </button>
+          </div>
+        ) : capturedUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={capturedUrl} alt="" className="max-h-full max-w-full object-contain" />
         ) : (
           <video ref={videoRef} playsInline muted className="w-full h-full object-cover" />
         )}
-        {!ready && !capturedUrl && (
+        {!ready && !failed && !capturedUrl && (
           <div className="absolute inset-0 flex items-center justify-center">
             <svg className="animate-spin" width="28" height="28" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="9" stroke="white" strokeOpacity="0.35" strokeWidth="3" />
@@ -131,7 +152,7 @@ export default function CameraCapture({ onCapture, onCancel, onError }: CameraCa
         </div>
 
         <div className="justify-self-center">
-          {!capturedUrl && (
+          {!failed && !capturedUrl && (
             <button
               type="button"
               onClick={handleShutter}
