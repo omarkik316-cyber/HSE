@@ -30,6 +30,16 @@ export default function OneSignalInit() {
         window.OneSignalDeferred.push(async (OneSignal: any) => {
           await OneSignal.init({
             appId: ONESIGNAL_APP_ID,
+            // The site's own service worker (from @ducanh2912/next-pwa) is
+            // registered at the root scope "/" for offline caching. If
+            // OneSignal's worker also registers at "/", whichever one
+            // registers last silently evicts the other — this is a
+            // documented OneSignal/PWA conflict, not a one-off bug. Moving
+            // OneSignal's worker to its own subdirectory scope lets both
+            // coexist. The file was moved to
+            // public/push/onesignal/OneSignalSDKWorker.js to match.
+            serviceWorkerPath: "push/onesignal/OneSignalSDKWorker.js",
+            serviceWorkerParam: { scope: "/push/onesignal/" },
             // Shows OneSignal's built-in slide-down prompt automatically a
             // few seconds after the page loads, asking the visitor to allow
             // notifications. You can further tune timing/copy from the
