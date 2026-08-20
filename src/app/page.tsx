@@ -134,7 +134,7 @@ export default function DashboardPage() {
         // PostgREST can't disambiguate and the whole query silently errors
         // out, returning null (which looked like "0 observations").
         .select(
-          "*, profiles!observations_reported_by_fkey(full_name, role, company), claimed_by_profile:profiles!observations_claimed_by_fkey(full_name), observation_photos(*)"
+          "*, profiles!observations_reported_by_fkey(full_name, role, company), closed_by_profile:profiles!observations_closed_by_fkey(full_name, role), claimed_by_profile:profiles!observations_claimed_by_fkey(full_name), observation_photos(*)"
         )
         .order("created_at", { ascending: false });
 

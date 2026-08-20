@@ -55,6 +55,7 @@ export interface Observation {
   observation_photos?: ObservationPhoto[];
   profiles?: Profile;
   claimed_by_profile?: Profile;
+  closed_by_profile?: Profile;
 }
 
 export interface NotificationRecord {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { cacheProfile, getCachedProfile, cacheObservations, getCachedObservations } from "@/lib/localCache";
 import type { Observation, Profile, ObservationPriority } from "@/types";
+import { getZoneColor } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 import BottomNav from "@/components/BottomNav";
 import { useT, roleLabel, priorityLabel } from "@/lib/i18n";
@@ -93,6 +94,15 @@ function Delta({ current, previous }: { current: number; previous: number }) {
   );
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+const MEDALS = ["🥇", "🥈", "🥉"];
+
 const PRIORITIES: ObservationPriority[] = ["critical", "high", "medium", "low"];
 const PRIORITY_COLORS: Record<ObservationPriority, string> = {
   critical: "#dc2626",
@@ -137,7 +147,16 @@ export default function StatsPage() {
       try {
         const { data, error } = await supabase
           .from("observations")
-          .select("*")
+          // observations has TWO foreign keys into profiles (reported_by and
+          // closed_by), so the embed must specify which one — see the same
+          // note on the dashboard's fetch in src/app/page.tsx. Both pages
+          // write the result into the same local cache key, so the embed
+          // shape here is kept as a superset of the dashboard's query —
+          // otherwise whichever page fetched last would silently strip
+          // fields the other page (and this one, offline) relies on.
+          .select(
+            "*, profiles!observations_reported_by_fkey(full_name, role, company), closed_by_profile:profiles!observations_closed_by_fkey(full_name, role), claimed_by_profile:profiles!observations_claimed_by_fkey(full_name), observation_photos(*)"
+          )
           .order("created_at", { ascending: false });
         if (error) throw error;
         setObservations(data ?? []);
@@ -227,6 +246,64 @@ export default function StatsPage() {
     return { open, inProgress, closed, total: observations.length };
   }, [observations]);
 
+  // All-time per-zone leaderboard: how many observations each zone has
+  // raised, and how many of those are closed — sorted by total raised so
+  // the busiest zone surfaces first.
+  const zoneLeaderboard = useMemo(() => {
+    const map = new Map<string, { zone: string; created: number; closed: number }>();
+    for (const o of observations) {
+      const zone = o.zone_name || t("stats.unknownZone");
+      const existing = map.get(zone) ?? { zone, created: 0, closed: 0 };
+      existing.created += 1;
+      if (o.status === "closed") existing.closed += 1;
+      map.set(zone, existing);
+    }
+    return Array.from(map.values()).sort((a, b) => b.created - a.created).slice(0, 6);
+  }, [observations, t]);
+
+  // All-time leaderboards for people: who closes the most observations
+  // (best safety officer) and who raises the most (top reporter). Built
+  // from whichever profile embed is present on each row, so names still
+  // show up for cached/offline data as long as it was fetched with the
+  // joined query at least once.
+  const topClosers = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; role: string | null; count: number }>();
+    for (const o of observations) {
+      if (!o.closed_by) continue;
+      const existing = map.get(o.closed_by);
+      const name = o.closed_by_profile?.full_name ?? existing?.name ?? t("common.unknown");
+      const role = o.closed_by_profile?.role ?? existing?.role ?? null;
+      if (existing) {
+        existing.count += 1;
+        if (o.closed_by_profile?.full_name) existing.name = o.closed_by_profile.full_name;
+      } else {
+        map.set(o.closed_by, { id: o.closed_by, name, role, count: 1 });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [observations, t]);
+
+  const topReporters = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; role: string | null; count: number }>();
+    for (const o of observations) {
+      if (!o.reported_by) continue;
+      const existing = map.get(o.reported_by);
+      const name = o.profiles?.full_name ?? existing?.name ?? t("common.unknown");
+      const role = o.profiles?.role ?? existing?.role ?? null;
+      if (existing) {
+        existing.count += 1;
+        if (o.profiles?.full_name) existing.name = o.profiles.full_name;
+      } else {
+        map.set(o.reported_by, { id: o.reported_by, name, role, count: 1 });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [observations, t]);
+
+  const topZone = zoneLeaderboard[0] ?? null;
+  const topCloser = topClosers[0] ?? null;
+  const topReporter = topReporters[0] ?? null;
+
   if (!session) {
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
@@ -268,6 +345,132 @@ export default function StatsPage() {
                 </div>
               ))}
             </div>
+
+            {/* Top performers: best safety officer (most closed) + top reporter (most raised) */}
+            <div>
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">{t("stats.topPerformers")}</h2>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl p-4 text-white shadow-sm">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-emerald-50/90">{t("stats.topCloser")}</div>
+                  {topCloser ? (
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold shrink-0">
+                        {initials(topCloser.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-[15px] truncate">{topCloser.name}</div>
+                        <div className="text-xs text-emerald-50/90">
+                          {topCloser.count} {t("stats.totalClosed")}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-sm text-emerald-50/90">{t("stats.noData")}</div>
+                  )}
+                </div>
+
+                <div className="relative overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-4 text-white shadow-sm">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-blue-50/90">{t("stats.topReporter")}</div>
+                  {topReporter ? (
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold shrink-0">
+                        {initials(topReporter.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-[15px] truncate">{topReporter.name}</div>
+                        <div className="text-xs text-blue-50/90">
+                          {topReporter.count} {t("stats.totalCreated")}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-sm text-blue-50/90">{t("stats.noData")}</div>
+                  )}
+                </div>
+              </div>
+
+              {(topClosers.length > 1 || topReporters.length > 1) && (
+                <div className="grid sm:grid-cols-2 gap-3 mt-3">
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
+                    <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase mb-2">{t("stats.topClosersList")}</div>
+                    <div className="space-y-2">
+                      {topClosers.map((p, i) => (
+                        <div key={p.id} className="flex items-center gap-2">
+                          <span className="text-sm w-5 text-center shrink-0">{MEDALS[i] ?? i + 1}</span>
+                          <span className="text-sm text-slate-700 dark:text-slate-200 truncate flex-1">{p.name}</span>
+                          <span className="text-sm font-semibold text-green-700 dark:text-green-500 shrink-0">{p.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
+                    <div className="text-xs font-medium text-slate-400 dark:text-slate-500 uppercase mb-2">{t("stats.topReportersList")}</div>
+                    <div className="space-y-2">
+                      {topReporters.map((p, i) => (
+                        <div key={p.id} className="flex items-center gap-2">
+                          <span className="text-sm w-5 text-center shrink-0">{MEDALS[i] ?? i + 1}</span>
+                          <span className="text-sm text-slate-700 dark:text-slate-200 truncate flex-1">{p.name}</span>
+                          <span className="text-sm font-semibold text-blue-700 dark:text-blue-500 shrink-0">{p.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Top zones: most-reported zones, with how many of each are closed */}
+            <div>
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">{t("stats.topZones")}</h2>
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
+                {zoneLeaderboard.length === 0 ? (
+                  <div className="text-center text-sm text-slate-400 py-4">{t("stats.noData")}</div>
+                ) : (
+                  <div className="space-y-3">
+                    {zoneLeaderboard.map((z, i) => {
+                      const pct = z.created > 0 ? Math.round((z.closed / z.created) * 100) : 0;
+                      const color = getZoneColor(z.zone === t("stats.unknownZone") ? null : z.zone);
+                      return (
+                        <div key={z.zone}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span
+                              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                              style={{ backgroundColor: color }}
+                            >
+                              {i + 1}
+                            </span>
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate flex-1">{z.zone}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">
+                              {z.created} {t("stats.obsAbbrev")} · {z.closed} {t("stats.closedAbbrev")}
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${pct}%`, backgroundColor: color }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {topZone && (
+              <div className="flex items-center gap-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4">
+                <span className="text-2xl shrink-0">📍</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                    {t("stats.busiestZone")}: {topZone.zone}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {topZone.created} {t("stats.totalCreated")} · {topZone.closed} {t("stats.totalClosed")}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 14-day daily trend chart */}
             <div>
