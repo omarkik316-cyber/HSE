@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/i18n";
+import { markLoginNow } from "@/lib/sessionExpiry";
 
 // Normalizes a Saudi-style local number into E.164 format that Supabase
 // requires, e.g. "0512345678" or "512345678" -> "+966512345678".
@@ -47,6 +48,8 @@ export default function LoginPage() {
         });
         if (error) throw error;
       }
+      // Starts (or restarts) the 24h clock from this successful sign-in/up.
+      markLoginNow();
       router.push("/");
       router.refresh();
     } catch (err) {

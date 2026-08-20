@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { clearLoginMark } from "@/lib/sessionExpiry";
 import {
   useSettings,
   type BasemapMode,
@@ -220,6 +221,7 @@ export default function SettingsPage() {
   }, [session]);
 
   async function handleSignOut() {
+    clearLoginMark();
     await supabase.auth.signOut();
     router.push("/login");
   }
