@@ -4,6 +4,8 @@ import { SettingsProvider } from "@/lib/settings";
 import ConnectionStatus from "@/components/ConnectionStatus";
 import SessionGuard from "@/components/SessionGuard";
 import OneSignalInit from "@/components/OneSignalInit";
+import AddToHomeScreenBanner from "@/components/AddToHomeScreenBanner";
+import EnableNotificationsBanner from "@/components/EnableNotificationsBanner";
 
 export const metadata: Metadata = {
   title: "HSE Observation System",
@@ -40,6 +42,8 @@ export default function RootLayout({
         <ConnectionStatus />
         <SessionGuard />
         <SettingsProvider>{children}</SettingsProvider>
+        <AddToHomeScreenBanner />
+        <EnableNotificationsBanner />
       </body>
     </html>
   );

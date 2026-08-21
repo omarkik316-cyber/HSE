@@ -35,6 +35,20 @@ export function requestPushPermissionOnUserGesture() {
   });
 }
 
+/**
+ * Resolves once with the current permission state (true = granted). Safe to
+ * call anytime, even before the SDK script has finished loading — it just
+ * queues onto OneSignalDeferred like everything else here.
+ */
+export function getPushPermission(): Promise<boolean> {
+  return new Promise((resolve) => {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push((OneSignal: any) => {
+      resolve(Boolean(OneSignal.Notifications.permission));
+    });
+  });
+}
+
 export type PushClickPayload = {
   title: string;
   message: string;
