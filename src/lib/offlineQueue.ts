@@ -140,7 +140,7 @@ async function submitPendingObservation(record: PendingObservationRecord): Promi
   // attempt already got this far: retrying never re-inserts once
   // serverObservationId is set, which is what stops a failed photo upload
   // from turning into a duplicate report on the next retry.
-  let observationId = record.serverObservationId ?? null;
+  let observationId: string | null = record.serverObservationId ?? null;
   let justCreated = false;
 
   if (!observationId) {
@@ -164,27 +164,35 @@ async function submitPendingObservation(record: PendingObservationRecord): Promi
 
     if (insertError) throw insertError;
 
-    observationId = observation.id;
+    // Captured into its own non-null const rather than relying on TS to
+    // keep narrowing `observationId` (a mutable `let`) across the `await`
+    // below — that narrowing doesn't survive the await, so every use
+    // after it still sees the wider `string | null` type.
+    const newObservationId: string = observation.id;
+    observationId = newObservationId;
     justCreated = true;
     // Persisted immediately — before touching the photo — so even if the
     // app closes mid-upload, the next retry already knows the report
     // itself exists and only has the photo left to finish.
-    record.serverObservationId = observationId;
+    record.serverObservationId = newObservationId;
     await updateRecord(record);
 
     notifyObservationCreated({
       title: record.title,
       zoneName: record.zoneName,
-      observationId,
+      observationId: newObservationId,
       createdBy: record.userId,
     });
   }
 
   // Phase B — the photo, only if there is one and it isn't already up.
   if (record.photo && !record.photoUploaded) {
+    // observationId is guaranteed set by this point: either it came in
+    // already set on the record, or the block above just set it.
+    const photoObservationId = observationId as string;
     try {
       const fileExt = record.photo.name.split(".").pop();
-      const filePath = `${observationId}/before-${Date.now()}.${fileExt}`;
+      const filePath = `${photoObservationId}/before-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("observation-photos")
@@ -194,7 +202,7 @@ async function submitPendingObservation(record: PendingObservationRecord): Promi
       const { data: publicUrl } = supabase.storage.from("observation-photos").getPublicUrl(filePath);
 
       await supabase.from("observation_photos").insert({
-        observation_id: observationId,
+        observation_id: photoObservationId,
         photo_url: publicUrl.publicUrl,
         photo_type: "before",
         uploaded_by: record.userId,
