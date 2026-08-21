@@ -94,7 +94,7 @@ export default function BottomNav() {
     { href: "/stats", label: t("nav.stats"), icon: (a) => <ChartIcon active={a} />, match: (p) => p.startsWith("/stats") },
   ];
 
-  if (profile?.role === "admin") {
+  if (profile?.role === "admin" || profile?.role === "manager") {
     tabs.push({
       href: "/admin/users",
       label: t("nav.users"),

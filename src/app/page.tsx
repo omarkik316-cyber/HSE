@@ -190,10 +190,11 @@ export default function DashboardPage() {
         return;
       }
 
-      // Safety officers, consultants, and admins can raise new observations
-      // by clicking the map. Contractors close them but don't create new ones.
+      // Safety officers, consultants, managers, and admins can raise new
+      // observations by clicking the map. Contractors close them but don't
+      // create new ones.
       const canCreate =
-        profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin";
+        profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin" || profile?.role === "manager";
       if (!canCreate) {
         setToast(t("dashboard.roleCannotCreate"));
         return;
@@ -213,7 +214,7 @@ export default function DashboardPage() {
       return false;
     }
     const allowed =
-      profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin";
+      profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin" || profile?.role === "manager";
     if (!allowed) {
       setToast(t("dashboard.roleCannotCreate"));
       return false;
@@ -349,7 +350,7 @@ export default function DashboardPage() {
   }
 
   const canCreate =
-    profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin";
+    profile?.role === "safety_officer" || profile?.role === "consultant" || profile?.role === "admin" || profile?.role === "manager";
   const overlayOpen = !!(pendingPin || selectedObs);
 
   return (

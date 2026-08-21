@@ -73,7 +73,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
   }, [profile.id]);
 
   useEffect(() => {
-    if (open && profile.role === "admin") {
+    if (open && (profile.role === "admin" || profile.role === "manager")) {
       fetchTemplates().then(setTemplates);
     }
   }, [open, profile.role]);
@@ -213,7 +213,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                 <div className="px-5 pb-1 flex items-center justify-between">
                   <h3 className="text-base font-semibold">{t("notif.title")}</h3>
                   <div className="flex items-center gap-3">
-                    {profile.role === "admin" && (
+                    {(profile.role === "admin" || profile.role === "manager") && (
                       <button
                         onClick={() => startCompose()}
                         className="tap text-xs font-semibold text-blue-600 dark:text-blue-400"

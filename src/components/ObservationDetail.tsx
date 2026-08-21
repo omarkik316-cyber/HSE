@@ -109,11 +109,11 @@ export default function ObservationDetail({ observation, userId, userName, userR
   }, [observation.id]);
 
   // Contractors submit fixes; safety officers/consultants/admins raise
-  // observations and move them in_progress. Only admins approve or reject
-  // a submitted fix — that's the review gate the person asked for.
-  const canWorkOn = userRole === "safety_officer" || userRole === "admin" || userRole === "contractor";
-  const canEditDetails = userRole === "safety_officer" || userRole === "admin";
-  const canReview = userRole === "admin";
+  // observations and move them in_progress. Managers have the same
+  // permissions as admins everywhere in the app, including the review gate.
+  const canWorkOn = userRole === "safety_officer" || userRole === "admin" || userRole === "manager" || userRole === "contractor";
+  const canEditDetails = userRole === "safety_officer" || userRole === "admin" || userRole === "manager";
+  const canReview = userRole === "admin" || userRole === "manager";
   // Full, permanent delete (not a status change) — reserved for admin and
   // manager, the two roles trusted to remove a bad/duplicate report entirely.
   const canDelete = userRole === "admin" || userRole === "manager";
@@ -534,7 +534,7 @@ export default function ObservationDetail({ observation, userId, userName, userR
             )}
             {observation.status === "in_progress" && (
               <>
-                {(observation.claimed_by === userId || userRole === "admin") ? (
+                {(observation.claimed_by === userId || userRole === "admin" || userRole === "manager") ? (
                   <div>
                     {observation.claimed_by && observation.claimed_by !== userId && (
                       <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-2 mb-2">

@@ -137,7 +137,7 @@ create policy "zones_admin_write" on zones for all using (
 -- Observations:
 --   - Everyone signed in (any role) can see every observation — there is
 --     no "contractor only sees their own company" restriction.
---   - Safety officers, consultants, and admins can create observations.
+--   - Safety officers, consultants, managers, and admins can create observations.
 --   - Safety officers, contractors, and admins can update/close them
 --     (consultants raise observations but don't close them).
 create policy "observations_select" on observations for select using (
@@ -145,7 +145,7 @@ create policy "observations_select" on observations for select using (
 );
 
 create policy "observations_insert" on observations for insert with check (
-  exists (select 1 from profiles where id = auth.uid() and role in ('safety_officer', 'consultant', 'admin'))
+  exists (select 1 from profiles where id = auth.uid() and role in ('safety_officer', 'consultant', 'admin', 'manager'))
 );
 
 create policy "observations_update" on observations for update using (
