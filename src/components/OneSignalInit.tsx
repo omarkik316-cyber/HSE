@@ -101,8 +101,19 @@ export default function OneSignalInit() {
           });
         `}
       </Script>
+      {/*
+        This exact path (with /web/v16/) is required — the shorter
+        https://cdn.onesignal.com/sdks/OneSignalSDK.page.js path (the old
+        v15-era URL) now 404s. That 404 is the actual root cause of the
+        stuck button: with the SDK script never loading, everything queued
+        on OneSignalDeferred (init, permission requests, permission reads)
+        just sits there forever with nothing to process it. The 8-second
+        fallback in getPushPermission() masked the symptom by showing the
+        button anyway, but tapping it still did nothing since the real SDK
+        was never there to act on the request.
+      */}
       <Script
-        src="https://cdn.onesignal.com/sdks/OneSignalSDK.page.js"
+        src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
         strategy="afterInteractive"
       />
     </>
