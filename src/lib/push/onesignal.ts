@@ -42,9 +42,26 @@ export function requestPushPermissionOnUserGesture() {
  */
 export function getPushPermission(): Promise<boolean> {
   return new Promise((resolve) => {
+    let settled = false;
+    const settle = (value: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    // Belt-and-suspenders: the ordering fix in OneSignalInit.tsx means the
+    // SDK should always initialize before this ever queues up, but the SDK
+    // still depends on a third-party CDN script (blocked by some ad/privacy
+    // blockers, or just slow/unreachable on a bad connection). If OneSignal
+    // never becomes available, this timeout keeps the Settings screen from
+    // showing a dead spot forever — it falls back to "not granted", which
+    // simply re-shows the enable button instead of leaving nothing tappable.
+    const timeout = setTimeout(() => settle(false), 8000);
+
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push((OneSignal: any) => {
-      resolve(Boolean(OneSignal.Notifications.permission));
+      clearTimeout(timeout);
+      settle(Boolean(OneSignal.Notifications.permission));
     });
   });
 }

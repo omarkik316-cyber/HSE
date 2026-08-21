@@ -11,64 +11,100 @@
 // requires).
 
 import Script from "next/script";
+import { useEffect } from "react";
 import { listenForPushClicks } from "@/lib/push/onesignal";
 
 const ONESIGNAL_APP_ID = "9be42027-eb2b-4027-8610-8ddb96cbaf10";
 
+// IMPORTANT: OneSignal.init() must be the very first thing ever pushed onto
+// window.OneSignalDeferred — every other push (permission requests, click
+// listeners, permission-state reads) is only meaningful once init() has run.
+//
+// Previously the init() push lived inside the SDK <Script>'s onLoad
+// handler. That handler only fires once the external CDN script has fully
+// downloaded and executed — which can take a noticeable moment on a slow
+// connection. During that window the page is already interactive, so if
+// someone tapped the notification bell (which also pushes onto
+// OneSignalDeferred, via requestPushPermissionOnUserGesture) before the CDN
+// script finished loading, their push landed in the array BEFORE init().
+// OneSignal then processed the queue in that order — permission logic ran
+// against an uninitialized SDK, and getPushPermission()'s promise (used by
+// the Settings screen to decide whether to show the "فعّل" button) never
+// resolved. That's why the button could simply never appear: not disabled,
+// just stuck waiting forever on a promise that was never going to settle.
+//
+// The fix is to push init() from a plain synchronous inline script
+// (strategy="beforeInteractive") instead of from the external script's
+// onLoad. beforeInteractive scripts run while the page is still being
+// built, before hydration finishes and before any click handler can fire —
+// so this push is now guaranteed to always be first in the queue,
+// regardless of how slow the CDN download is or how fast someone taps the
+// bell.
 export default function OneSignalInit() {
+  useEffect(() => {
+    // Runs after hydration, i.e. always after the inline init push above,
+    // so this is safely queued behind it.
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(() => {
+      listenForPushClicks();
+    });
+  }, []);
+
   return (
-    <Script
-      src="https://cdn.onesignal.com/sdks/OneSignalSDK.page.js"
-      strategy="afterInteractive"
-      onLoad={() => {
-        window.OneSignalDeferred = window.OneSignalDeferred || [];
-        window.OneSignalDeferred.push(async (OneSignal: any) => {
-          await OneSignal.init({
-            appId: ONESIGNAL_APP_ID,
-            // The site's own service worker (from @ducanh2912/next-pwa) is
-            // registered at the root scope "/" for offline caching. If
-            // OneSignal's worker also registers at "/", whichever one
-            // registers last silently evicts the other — this is a
-            // documented OneSignal/PWA conflict, not a one-off bug. Moving
-            // OneSignal's worker to its own subdirectory scope lets both
-            // coexist. The file was moved to
-            // public/push/onesignal/OneSignalSDKWorker.js to match.
-            serviceWorkerPath: "push/onesignal/OneSignalSDKWorker.js",
-            serviceWorkerParam: { scope: "/push/onesignal/" },
-            // The timer-based auto-prompt (autoPrompt: true + delay) fires
-            // from a setTimeout, not a direct user tap — iOS Safari
-            // requires permission requests to originate from a real
-            // synchronous user gesture and otherwise just declines to show
-            // anything, native dialog included. That's why "السماح" never
-            // appeared. Permission is now requested explicitly when the
-            // person taps the notification bell instead (see
-            // requestPushPermissionOnUserGesture in lib/push/onesignal.ts),
-            // so autoPrompt is off here — this slidedown config is kept
-            // only in case it's turned back on for non-iOS visitors later.
-            promptOptions: {
-              slidedown: {
-                prompts: [
-                  {
-                    type: "push",
-                    autoPrompt: false,
-                    text: {
-                      actionMessage:
-                        "نود إرسال إشعارات لك عند وجود بلاغات أو تحديثات جديدة في نظام الملاحظات.",
-                      acceptButton: "السماح",
-                      cancelButton: "لاحقاً",
-                    },
-                    delay: {
-                      pageViews: 1,
-                      timeDelay: 5,
-                    },
-                  },
-                ],
-              },
-            },
+    <>
+      <Script id="onesignal-init" strategy="beforeInteractive">
+        {`
+          window.OneSignalDeferred = window.OneSignalDeferred || [];
+          window.OneSignalDeferred.push(function (OneSignal) {
+            OneSignal.init({
+              appId: "${ONESIGNAL_APP_ID}",
+              // The site's own service worker (from @ducanh2912/next-pwa) is
+              // registered at the root scope "/" for offline caching. If
+              // OneSignal's worker also registers at "/", whichever one
+              // registers last silently evicts the other — this is a
+              // documented OneSignal/PWA conflict, not a one-off bug. Moving
+              // OneSignal's worker to its own subdirectory scope lets both
+              // coexist. The file was moved to
+              // public/push/onesignal/OneSignalSDKWorker.js to match.
+              serviceWorkerPath: "push/onesignal/OneSignalSDKWorker.js",
+              serviceWorkerParam: { scope: "/push/onesignal/" },
+              // The timer-based auto-prompt (autoPrompt: true + delay) fires
+              // from a setTimeout, not a direct user tap — iOS Safari
+              // requires permission requests to originate from a real
+              // synchronous user gesture and otherwise just declines to show
+              // anything, native dialog included. That's why "السماح" never
+              // appeared. Permission is now requested explicitly when the
+              // person taps the notification bell instead (see
+              // requestPushPermissionOnUserGesture in lib/push/onesignal.ts),
+              // so autoPrompt is off here — this slidedown config is kept
+              // only in case it's turned back on for non-iOS visitors later.
+              promptOptions: {
+                slidedown: {
+                  prompts: [
+                    {
+                      type: "push",
+                      autoPrompt: false,
+                      text: {
+                        actionMessage: "نود إرسال إشعارات لك عند وجود بلاغات أو تحديثات جديدة في نظام الملاحظات.",
+                        acceptButton: "السماح",
+                        cancelButton: "لاحقاً"
+                      },
+                      delay: {
+                        pageViews: 1,
+                        timeDelay: 5
+                      }
+                    }
+                  ]
+                }
+              }
+            });
           });
-          listenForPushClicks();
-        });
-      }}
-    />
+        `}
+      </Script>
+      <Script
+        src="https://cdn.onesignal.com/sdks/OneSignalSDK.page.js"
+        strategy="afterInteractive"
+      />
+    </>
   );
 }
