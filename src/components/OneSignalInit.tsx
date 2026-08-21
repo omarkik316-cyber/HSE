@@ -15,12 +15,6 @@ import { listenForPushClicks } from "@/lib/push/onesignal";
 
 const ONESIGNAL_APP_ID = "9be42027-eb2b-4027-8610-8ddb96cbaf10";
 
-declare global {
-  interface Window {
-    OneSignalDeferred?: Array<(oneSignal: unknown) => void>;
-  }
-}
-
 export default function OneSignalInit() {
   return (
     <Script
