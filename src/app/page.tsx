@@ -138,7 +138,7 @@ export default function DashboardPage() {
         const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
         if (error) throw error;
         setProfile(data);
-        cacheProfile(data);
+        await cacheProfile(data);
       } catch {
         // Offline (or any other transient failure) — without this fallback
         // profileLoading stayed true forever, since nothing else ever set
@@ -146,7 +146,7 @@ export default function DashboardPage() {
         // create an observation, repeating "Still loading your account"
         // indefinitely even though the person's role/permissions haven't
         // actually changed since the last time this loaded successfully.
-        const cached = getCachedProfile(userId);
+        const cached = await getCachedProfile(userId);
         if (cached) setProfile(cached);
       } finally {
         setProfileLoading(false);
@@ -171,7 +171,7 @@ export default function DashboardPage() {
     // to the cache anyway. Checked live here (not via React state) so
     // there's no risk of using a stale value from just after mount.
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const cached = getCachedObservations();
+      const cached = await getCachedObservations();
       if (cached.length > 0) setObservations(cached);
       return;
     }
@@ -189,7 +189,7 @@ export default function DashboardPage() {
 
       if (error) throw error;
       setObservations(data ?? []);
-      cacheObservations(data ?? []);
+      await cacheObservations(data ?? []);
     } catch (err) {
       // Most commonly either RLS hiding rows (role/company mismatch) or,
       // offline, the fetch never reaching the network at all. Either way,
@@ -197,7 +197,7 @@ export default function DashboardPage() {
       // list, and stats showing real (if slightly stale) data instead of
       // going blank the moment the connection drops.
       console.error("Failed to load observations:", err);
-      const cached = getCachedObservations();
+      const cached = await getCachedObservations();
       if (cached.length > 0) setObservations(cached);
     }
   }, []);

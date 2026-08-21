@@ -258,9 +258,9 @@ export default function SettingsPage() {
         const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
         if (error) throw error;
         setProfile(data);
-        cacheProfile(data);
+        await cacheProfile(data);
       } catch {
-        const cached = getCachedProfile(userId);
+        const cached = await getCachedProfile(userId);
         if (cached) setProfile(cached);
       }
     })();

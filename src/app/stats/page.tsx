@@ -154,9 +154,9 @@ export default function StatsPage() {
         const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
         if (error) throw error;
         setProfile(data);
-        cacheProfile(data);
+        await cacheProfile(data);
       } catch {
-        const cached = getCachedProfile(userId);
+        const cached = await getCachedProfile(userId);
         if (cached) setProfile(cached);
       }
     })();
@@ -166,19 +166,19 @@ export default function StatsPage() {
     if (!session) return;
     setLoading(true);
 
-    // Same reasoning as the dashboard's fetchObservations in
-    // src/app/page.tsx: skip the network attempt entirely when we already
-    // know we're offline, otherwise the browser still spends several
-    // seconds trying (and failing) before the catch block below could
-    // fall back to the cache anyway.
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      const cached = getCachedObservations();
-      if (cached.length > 0) setObservations(cached);
-      setLoading(false);
-      return;
-    }
-
     (async () => {
+      // Same reasoning as the dashboard's fetchObservations in
+      // src/app/page.tsx: skip the network attempt entirely when we
+      // already know we're offline, otherwise the browser still spends
+      // several seconds trying (and failing) before the catch block below
+      // could fall back to the cache anyway.
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await getCachedObservations();
+        if (cached.length > 0) setObservations(cached);
+        setLoading(false);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from("observations")
@@ -195,7 +195,7 @@ export default function StatsPage() {
           .order("created_at", { ascending: false });
         if (error) throw error;
         setObservations(data ?? []);
-        cacheObservations(data ?? []);
+        await cacheObservations(data ?? []);
       } catch (err) {
         // Offline, most likely — this used to leave the page stuck on
         // "Loading..." forever, since nothing ever called setLoading(false)
@@ -203,7 +203,7 @@ export default function StatsPage() {
         // Falling back to the last cached observations means the charts
         // still render (from slightly stale data) with zero signal.
         console.error("Failed to load observations for stats:", err);
-        const cached = getCachedObservations();
+        const cached = await getCachedObservations();
         if (cached.length > 0) setObservations(cached);
       } finally {
         setLoading(false);
