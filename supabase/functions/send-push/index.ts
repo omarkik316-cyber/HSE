@@ -8,9 +8,12 @@
 // Deploy with:
 //   supabase functions deploy send-push
 //
-// Then set the two secrets (from OneSignal Dashboard -> Settings -> Keys & IDs):
+// Then set the secrets (from OneSignal Dashboard -> Settings -> Keys & IDs):
 //   supabase secrets set ONESIGNAL_APP_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 //   supabase secrets set ONESIGNAL_REST_API_KEY=os_v2_app_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+// Optional — set this to deep-link notification taps straight to the
+// relevant observation instead of just opening the site's home page:
+//   supabase secrets set SITE_URL=https://your-deployed-domain.com
 //
 // The REST API key is a secret — it must only ever live here (server side),
 // never in the Android app or the website's client-side code.
@@ -26,7 +29,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { title, message } = await req.json();
+    const { title, message, observationId } = await req.json();
 
     if (!title || !message) {
       return new Response(JSON.stringify({ error: "title and message are required" }), {
@@ -57,6 +60,14 @@ Deno.serve(async (req: Request) => {
     // empty/non-existent segment and OneSignal returns
     // "All included players are not subscribed" even when real devices are
     // subscribed under the correct segment.
+    const siteUrl = Deno.env.get("SITE_URL");
+    // When an observationId is provided AND SITE_URL is configured, deep-link
+    // the notification straight to that observation on tap. Otherwise it
+    // just opens the site's normal start URL — still fine, just not
+    // pre-filtered to one observation.
+    const url =
+      observationId && siteUrl ? `${siteUrl.replace(/\/$/, "")}/?obs=${observationId}` : undefined;
+
     const oneSignalResponse = await fetch("https://onesignal.com/api/v1/notifications", {
       method: "POST",
       headers: {
@@ -68,6 +79,11 @@ Deno.serve(async (req: Request) => {
         included_segments: ["Total Subscriptions"],
         headings: { en: title },
         contents: { en: message },
+        // Read by the client-side click listener (lib/push/onesignal.ts)
+        // to open the right observation and show the floating popup even
+        // when the tab was already open in the foreground.
+        data: observationId ? { observationId } : undefined,
+        ...(url ? { url } : {}),
       }),
     });
 

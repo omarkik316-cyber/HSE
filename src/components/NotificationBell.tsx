@@ -15,6 +15,7 @@ import {
 } from "@/lib/notifications";
 import { useT } from "@/lib/i18n";
 import { useDateLocale } from "@/lib/dateLocale";
+import { requestPushPermissionOnUserGesture } from "@/lib/push/onesignal";
 
 interface NotificationBellProps {
   profile: Profile;
@@ -76,6 +77,10 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
   }, [open, profile.role]);
 
   function openPanel() {
+    // Must be the first thing in this handler — iOS only shows its native
+    // permission dialog when the request happens synchronously inside a
+    // real tap. No-ops instantly if permission was already granted.
+    requestPushPermissionOnUserGesture();
     setView("list");
     setOpen(true);
     reload();

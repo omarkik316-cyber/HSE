@@ -10,9 +10,9 @@ const RECENT_LIMIT = 60;
  * in-app notification from being saved, since the bell already covers
  * anyone with the app open.
  */
-async function triggerPush(title: string, message: string) {
+async function triggerPush(title: string, message: string, observationId?: string) {
   try {
-    await supabase.functions.invoke("send-push", { body: { title, message } });
+    await supabase.functions.invoke("send-push", { body: { title, message, observationId } });
   } catch (err) {
     console.error("Push notification failed to send:", err);
   }
@@ -90,7 +90,7 @@ export async function notifyObservationCreated(params: {
     console.error("Failed to send observation-created notification:", error.message);
     return;
   }
-  triggerPush("New Observation", message);
+  triggerPush("New Observation", message, params.observationId);
 }
 
 const STATUS_NOTIFICATION_TEXT: Record<ObservationStatus, string> = {
@@ -121,7 +121,7 @@ export async function notifyStatusChanged(params: {
     console.error("Failed to send status-changed notification:", error.message);
     return;
   }
-  triggerPush("Observation Update", message);
+  triggerPush("Observation Update", message, params.observationId);
 }
 
 export async function sendAdminBroadcast(params: { title: string; message: string; createdBy: string }) {

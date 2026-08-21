@@ -13,6 +13,7 @@ import StatsBar from "@/components/StatsBar";
 import FilterBar, { defaultFilters, applyFilters, type Filters } from "@/components/FilterBar";
 import BottomNav from "@/components/BottomNav";
 import NotificationBell from "@/components/NotificationBell";
+import { onPushClick } from "@/lib/push/onesignal";
 import { startAutoSync, subscribeQueue, getPendingObservations } from "@/lib/offlineQueue";
 import { cacheProfile, getCachedProfile, cacheObservations, getCachedObservations } from "@/lib/localCache";
 import { loadZones, detectZone, getZoneOptions, type ZoneOption } from "@/lib/zoneDetect";
@@ -69,6 +70,12 @@ export default function DashboardPage() {
   // native alert() — alerts on mobile can get dismissed by a stray tap
   // before they're even read, which looks exactly like "nothing happened".
   const [toast, setToast] = useState<string | null>(null);
+  // Set either by tapping a delivered push notification (foreground click)
+  // or by the site launching cold from a notification tap, via the ?obs=
+  // URL param the Edge Function embeds — see lib/push/onesignal.ts and
+  // supabase/functions/send-push. Held here until `observations` has
+  // actually loaded, since a cold launch races the initial fetch.
+  const [pendingPushObs, setPendingPushObs] = useState<string | null>(null);
   // Count of observations saved locally because the connection was too weak
   // to send them — shown as a small badge on the Settings entry point.
   const [pendingCount, setPendingCount] = useState(0);
@@ -274,6 +281,28 @@ export default function DashboardPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  // Cold launch from a notification tap: the Edge Function points the OS
+  // notification at "/?obs=<id>", so pick that up once on mount and clean
+  // the URL so it doesn't linger in the address bar or get re-triggered on
+  // refresh.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const obsId = params.get("obs");
+    if (obsId) {
+      setPendingPushObs(obsId);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  // Foreground tap: the tab was already open when the notification was
+  // tapped, so OneSignal fires this instead of a fresh page load.
+  useEffect(() => {
+    return onPushClick((payload) => {
+      setToast(`${payload.title}: ${payload.message}`);
+      if (payload.observationId) setPendingPushObs(payload.observationId);
+    });
+  }, []);
+
   const handlePinClick = useCallback((obs: Observation) => {
     setPendingPin(null);
     setSelectedObs(obs);
@@ -294,6 +323,17 @@ export default function DashboardPage() {
     },
     [observations, t]
   );
+
+  // Runs whenever either side of the race resolves: the observation list
+  // finishing its load, or a push click arriving after the list is already
+  // loaded. Only fires once per pending id.
+  useEffect(() => {
+    if (!pendingPushObs || observations.length === 0) return;
+    handleOpenObservationById(pendingPushObs);
+    setPendingPushObs(null);
+  }, [pendingPushObs, observations, handleOpenObservationById]);
+
+
 
   if (!session) {
     return (

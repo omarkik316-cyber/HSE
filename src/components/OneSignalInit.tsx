@@ -11,6 +11,7 @@
 // requires).
 
 import Script from "next/script";
+import { listenForPushClicks } from "@/lib/push/onesignal";
 
 const ONESIGNAL_APP_ID = "9be42027-eb2b-4027-8610-8ddb96cbaf10";
 
@@ -40,17 +41,22 @@ export default function OneSignalInit() {
             // public/push/onesignal/OneSignalSDKWorker.js to match.
             serviceWorkerPath: "push/onesignal/OneSignalSDKWorker.js",
             serviceWorkerParam: { scope: "/push/onesignal/" },
-            // Shows OneSignal's built-in slide-down prompt automatically a
-            // few seconds after the page loads, asking the visitor to allow
-            // notifications. You can further tune timing/copy from the
-            // OneSignal Dashboard under Settings -> Web Push -> Permission
-            // Prompts -> Slide Prompt.
+            // The timer-based auto-prompt (autoPrompt: true + delay) fires
+            // from a setTimeout, not a direct user tap — iOS Safari
+            // requires permission requests to originate from a real
+            // synchronous user gesture and otherwise just declines to show
+            // anything, native dialog included. That's why "السماح" never
+            // appeared. Permission is now requested explicitly when the
+            // person taps the notification bell instead (see
+            // requestPushPermissionOnUserGesture in lib/push/onesignal.ts),
+            // so autoPrompt is off here — this slidedown config is kept
+            // only in case it's turned back on for non-iOS visitors later.
             promptOptions: {
               slidedown: {
                 prompts: [
                   {
                     type: "push",
-                    autoPrompt: true,
+                    autoPrompt: false,
                     text: {
                       actionMessage:
                         "نود إرسال إشعارات لك عند وجود بلاغات أو تحديثات جديدة في نظام الملاحظات.",
@@ -66,6 +72,7 @@ export default function OneSignalInit() {
               },
             },
           });
+          listenForPushClicks();
         });
       }}
     />
