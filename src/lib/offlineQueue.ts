@@ -33,9 +33,20 @@ export interface PendingObservationInput {
 export interface PendingObservationRecord extends PendingObservationInput {
   id: string;
   createdAt: number;
-  status: "pending" | "syncing" | "failed";
+  status: "pending" | "syncing" | "failed" | "partial";
   lastError: string | null;
   attempts: number;
+  // Set the moment the observations row is actually created on the server.
+  // Retrying never re-checks "did this fully succeed before" any other
+  // way than this field — without it, a retry after a failed photo upload
+  // would call submitPendingObservation() again and insert a SECOND
+  // observations row for the same report.
+  serverObservationId?: string | null;
+  // True once the photo (if any) is uploaded and linked. A record with a
+  // serverObservationId set but photoUploaded false/undefined is the
+  // "partial" case: the report itself is already live and visible to
+  // everyone, just missing its photo.
+  photoUploaded?: boolean;
 }
 
 const DB_NAME = "hse-offline-queue";
@@ -125,57 +136,98 @@ async function updateRecord(record: PendingObservationRecord): Promise<void> {
 }
 
 async function submitPendingObservation(record: PendingObservationRecord): Promise<void> {
-  const { data: observation, error: insertError } = await supabase
-    .from("observations")
-    .insert({
-      title: record.title,
-      description: record.description,
-      category: record.category,
-      priority: record.priority,
-      status: "open",
-      latitude: record.lat,
-      longitude: record.lng,
-      zone_name: record.zoneName,
-      reported_by: record.userId,
-      assigned_contractor: record.assignedContractor,
-      due_date: record.dueDateISO,
-    })
-    .select()
-    .single();
+  // Phase A — create the observations row. Skipped entirely if a previous
+  // attempt already got this far: retrying never re-inserts once
+  // serverObservationId is set, which is what stops a failed photo upload
+  // from turning into a duplicate report on the next retry.
+  let observationId = record.serverObservationId ?? null;
+  let justCreated = false;
 
-  if (insertError) throw insertError;
+  if (!observationId) {
+    const { data: observation, error: insertError } = await supabase
+      .from("observations")
+      .insert({
+        title: record.title,
+        description: record.description,
+        category: record.category,
+        priority: record.priority,
+        status: "open",
+        latitude: record.lat,
+        longitude: record.lng,
+        zone_name: record.zoneName,
+        reported_by: record.userId,
+        assigned_contractor: record.assignedContractor,
+        due_date: record.dueDateISO,
+      })
+      .select()
+      .single();
 
-  if (record.photo && observation) {
-    const fileExt = record.photo.name.split(".").pop();
-    const filePath = `${observation.id}/before-${Date.now()}.${fileExt}`;
+    if (insertError) throw insertError;
 
-    const { error: uploadError } = await supabase.storage
-      .from("observation-photos")
-      .upload(filePath, record.photo);
-    if (uploadError) throw uploadError;
+    observationId = observation.id;
+    justCreated = true;
+    // Persisted immediately — before touching the photo — so even if the
+    // app closes mid-upload, the next retry already knows the report
+    // itself exists and only has the photo left to finish.
+    record.serverObservationId = observationId;
+    await updateRecord(record);
 
-    const { data: publicUrl } = supabase.storage.from("observation-photos").getPublicUrl(filePath);
-
-    await supabase.from("observation_photos").insert({
-      observation_id: observation.id,
-      photo_url: publicUrl.publicUrl,
-      photo_type: "before",
-      uploaded_by: record.userId,
-    });
-  }
-
-  if (observation) {
     notifyObservationCreated({
       title: record.title,
       zoneName: record.zoneName,
-      observationId: observation.id,
+      observationId,
       createdBy: record.userId,
     });
+  }
+
+  // Phase B — the photo, only if there is one and it isn't already up.
+  if (record.photo && !record.photoUploaded) {
+    try {
+      const fileExt = record.photo.name.split(".").pop();
+      const filePath = `${observationId}/before-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("observation-photos")
+        .upload(filePath, record.photo);
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrl } = supabase.storage.from("observation-photos").getPublicUrl(filePath);
+
+      await supabase.from("observation_photos").insert({
+        observation_id: observationId,
+        photo_url: publicUrl.publicUrl,
+        photo_type: "before",
+        uploaded_by: record.userId,
+      });
+
+      record.photoUploaded = true;
+    } catch (photoErr) {
+      // The report itself is already safely on the server (either just
+      // now, or on an earlier attempt) — only the photo failed. Thrown as
+      // a distinct error type so retryPendingObservation can tell this
+      // apart from "nothing was sent at all" and mark the record
+      // "partial" instead of "failed".
+      throw new PhotoUploadError(
+        photoErr instanceof Error ? photoErr.message : "Failed to upload photo",
+        justCreated
+      );
+    }
+  }
+}
+
+// Thrown only from the photo-upload phase in submitPendingObservation, so
+// retryPendingObservation can tell "report sent, photo failed" apart from
+// "nothing reached the server" and mark the record accordingly instead of
+// treating every failure the same way.
+class PhotoUploadError extends Error {
+  constructor(message: string, public readonly justCreated: boolean) {
+    super(message);
+    this.name = "PhotoUploadError";
   }
 }
 
 /** Retries a single queued item. Returns ok:false with a message on failure — never throws. */
-export async function retryPendingObservation(id: string): Promise<{ ok: boolean; error?: string }> {
+export async function retryPendingObservation(id: string): Promise<{ ok: boolean; partial?: boolean; error?: string }> {
   const all = await getPendingObservations();
   const record = all.find((r) => r.id === id);
   if (!record) return { ok: false, error: "Not found" };
@@ -189,12 +241,13 @@ export async function retryPendingObservation(id: string): Promise<{ ok: boolean
     await removePendingObservation(id);
     return { ok: true };
   } catch (err) {
+    const partial = err instanceof PhotoUploadError;
     const message = err instanceof Error ? err.message : "Failed to send";
-    record.status = "failed";
+    record.status = partial ? "partial" : "failed";
     record.lastError = message;
     record.attempts += 1;
     await updateRecord(record);
-    return { ok: false, error: message };
+    return { ok: false, partial, error: message };
   }
 }
 

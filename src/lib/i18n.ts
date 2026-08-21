@@ -240,6 +240,8 @@ const en = {
   "pending.waitingToSend": "Waiting to send · {time} ago",
   "pending.retry": "Retry",
   "pending.delete": "Delete",
+  "pending.partial": "Report sent — photo still pending",
+  "pending.dismissPhoto": "Give up on photo",
 
   "settings.title": "Settings",
   "settings.account": "Account",
@@ -605,6 +607,8 @@ const ar: Partial<Record<keyof typeof en, string>> = {
   "pending.waitingToSend": "بانتظار الإرسال · منذ {time}",
   "pending.retry": "إعادة المحاولة",
   "pending.delete": "حذف",
+  "pending.partial": "تم إرسال البلاغ — الصورة لسه ما انرفعت",
+  "pending.dismissPhoto": "تجاهل الصورة",
 
   "settings.title": "الإعدادات",
   "settings.account": "الحساب",
@@ -961,6 +965,8 @@ const zh: Partial<Record<keyof typeof en, string>> = {
   "pending.waitingToSend": "等待发送 · {time}前",
   "pending.retry": "重试",
   "pending.delete": "删除",
+  "pending.partial": "报告已发送——照片仍待上传",
+  "pending.dismissPhoto": "放弃上传照片",
 
   "settings.title": "设置",
   "settings.account": "账户",
