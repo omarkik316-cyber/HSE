@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useT } from "@/lib/i18n";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import type { Profile } from "@/types";
 
 interface TabDef {
@@ -11,6 +12,7 @@ interface TabDef {
   label: string;
   icon: (active: boolean) => React.ReactNode;
   match: (path: string) => boolean;
+  requiresOnline?: boolean;
 }
 
 function MapIcon({ active }: { active: boolean }) {
@@ -68,6 +70,7 @@ export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useT();
+  const isOnline = useOnlineStatus();
   const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
@@ -91,7 +94,7 @@ export default function BottomNav() {
 
   const tabs: TabDef[] = [
     { href: "/", label: t("nav.map"), icon: (a) => <MapIcon active={a} />, match: (p) => p === "/" },
-    { href: "/stats", label: t("nav.stats"), icon: (a) => <ChartIcon active={a} />, match: (p) => p.startsWith("/stats") },
+    { href: "/stats", label: t("nav.stats"), icon: (a) => <ChartIcon active={a} />, match: (p) => p.startsWith("/stats"), requiresOnline: true },
   ];
 
   if (profile?.role === "admin") {
@@ -119,16 +122,27 @@ export default function BottomNav() {
       <div className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
         {tabs.map((tab) => {
           const active = tab.match(pathname ?? "");
+          const disabled = !!tab.requiresOnline && !isOnline;
           return (
             <button
               key={tab.href}
-              onClick={() => router.push(tab.href)}
+              onClick={() => {
+                if (disabled) return;
+                router.push(tab.href);
+              }}
+              disabled={disabled}
+              aria-disabled={disabled}
+              title={disabled ? t("nav.requiresInternet") : undefined}
               className={`tap flex flex-col items-center justify-center gap-0.5 py-2 pt-2.5 ${
-                active ? "text-blue-600 dark:text-blue-400" : "text-slate-400 dark:text-slate-500"
+                disabled
+                  ? "text-slate-300 dark:text-slate-700 cursor-not-allowed"
+                  : active
+                  ? "text-blue-600 dark:text-blue-400"
+                  : "text-slate-400 dark:text-slate-500"
               }`}
             >
-              {tab.icon(active)}
-              <span className={`text-[10px] ${active ? "font-semibold" : "font-medium"}`}>{tab.label}</span>
+              {tab.icon(active && !disabled)}
+              <span className={`text-[10px] ${active && !disabled ? "font-semibold" : "font-medium"}`}>{tab.label}</span>
             </button>
           );
         })}

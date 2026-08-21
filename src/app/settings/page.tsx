@@ -155,6 +155,11 @@ export default function SettingsPage() {
   const { t } = useT();
   const isOnline = useOnlineStatus();
   const [session, setSession] = useState<Session | null>(null);
+  // false until the very first supabase.auth.getSession() resolves — avoids
+  // briefly treating "haven't checked yet" as "signed out" (session starts
+  // out null either way) and flashing a sign-in redirect for people who are
+  // actually signed in.
+  const [authChecked, setAuthChecked] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const [cachedTiles, setCachedTiles] = useState<number | null>(null);
@@ -224,10 +229,23 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthChecked(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s);
+      setAuthChecked(true);
+    });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // No session once the check is done — go straight to the login page
+  // instead of showing a "please sign in" screen the person has to tap
+  // through.
+  useEffect(() => {
+    if (authChecked && !session) router.replace("/login");
+  }, [authChecked, session, router]);
 
   useEffect(() => {
     if (!session?.user) {
@@ -257,10 +275,7 @@ export default function SettingsPage() {
   if (!session) {
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <div className="text-center space-y-3">
-          <p className="text-lg font-medium">{t("common.pleaseSignIn")}</p>
-          <a href="/login" className="text-blue-600 dark:text-blue-400 underline">{t("common.goToLogin")}</a>
-        </div>
+        <div className="text-slate-400">{t("common.loading")}</div>
       </div>
     );
   }

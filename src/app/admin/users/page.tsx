@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import type { Profile, UserRole } from "@/types";
 import type { Session } from "@supabase/supabase-js";
@@ -16,7 +17,13 @@ interface Draft {
 
 export default function AdminUsersPage() {
   const { t } = useT();
+  const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
+  // false until the very first supabase.auth.getSession() resolves. session
+  // itself starts out null, same as "signed out" — without this flag we'd
+  // briefly treat "haven't checked yet" as "not signed in" and flash the
+  // sign-in redirect for people who actually are signed in.
+  const [authChecked, setAuthChecked] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [users, setUsers] = useState<Profile[]>([]);
@@ -25,12 +32,26 @@ export default function AdminUsersPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthChecked(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s);
+      setAuthChecked(true);
+    });
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // No session once the check is done — go straight to the login page
+  // instead of showing a "please sign in" screen the person has to tap
+  // through.
   useEffect(() => {
+    if (authChecked && !session) router.replace("/login");
+  }, [authChecked, session, router]);
+
+  useEffect(() => {
+    if (!authChecked) return;
     if (!session?.user) {
       setProfile(null);
       setLoadingProfile(false);
@@ -45,7 +66,7 @@ export default function AdminUsersPage() {
         setProfile(data);
         setLoadingProfile(false);
       });
-  }, [session]);
+  }, [session, authChecked]);
 
   const fetchUsers = useCallback(async () => {
     const { data, error } = await supabase
@@ -92,19 +113,8 @@ export default function AdminUsersPage() {
     fetchUsers();
   }
 
-  if (loadingProfile) {
+  if (loadingProfile || !session) {
     return <div className="h-dvh flex items-center justify-center text-slate-400">{t("common.loading")}</div>;
-  }
-
-  if (!session) {
-    return (
-      <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <div className="text-center space-y-3">
-          <p className="text-lg font-medium">{t("common.pleaseSignIn")}</p>
-          <a href="/login" className="text-blue-600 dark:text-blue-400 underline">{t("common.goToLogin")}</a>
-        </div>
-      </div>
-    );
   }
 
   if (profile?.role !== "admin") {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useSettings } from "@/lib/settings";
 import ObservationForm from "@/components/ObservationForm";
@@ -48,7 +49,13 @@ type PendingPin = { lng: number; lat: number; zoneName: string | null } | null;
 export default function DashboardPage() {
   const { basemap, uiMode } = useSettings();
   const { t } = useT();
+  const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
+  // false until the very first supabase.auth.getSession() resolves — avoids
+  // briefly treating "haven't checked yet" as "signed out" (session starts
+  // out null either way) and flashing a sign-in redirect for people who are
+  // actually signed in.
+  const [authChecked, setAuthChecked] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
   const [pendingPin, setPendingPin] = useState<PendingPin>(null);
@@ -96,10 +103,23 @@ export default function DashboardPage() {
 
   // Auth
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthChecked(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      setAuthChecked(true);
+    });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // No session once the check is done — go straight to the login page
+  // instead of showing a "please sign in" screen the person has to tap
+  // through.
+  useEffect(() => {
+    if (authChecked && !session) router.replace("/login");
+  }, [authChecked, session, router]);
 
   // Load profile once we have a session
   useEffect(() => {
@@ -339,12 +359,7 @@ export default function DashboardPage() {
   if (!session) {
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <div className="text-center space-y-3">
-          <p className="text-lg font-medium">{t("common.pleaseSignIn")}</p>
-          <a href="/login" className="text-blue-600 dark:text-blue-400 underline">
-            {t("common.goToLogin")}
-          </a>
-        </div>
+        <div className="text-slate-400">{t("common.loading")}</div>
       </div>
     );
   }
