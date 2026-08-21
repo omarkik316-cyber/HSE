@@ -276,6 +276,14 @@ const en = {
   "settings.signOut": "Sign Out",
   "settings.footer": "HSE Observation System · v1.0",
   "settings.downloadFailed": "Download failed",
+  "settings.notifications": "Notifications",
+  "settings.reportAlerts": "Report Alerts",
+  "settings.reportAlertsNeedsInstall":
+    "Install the app to your Home Screen first (Share button in Safari) to turn this on.",
+  "settings.reportAlertsEnabledDesc": "Enabled — you'll get new reports and updates.",
+  "settings.reportAlertsDisabledDesc": "Turn it on to get new reports and updates right away.",
+  "settings.reportAlertsEnabledBadge": "Enabled",
+  "settings.reportAlertsEnableCta": "Enable",
 
   "stats.header": "Statistics — Week over Week",
   "stats.open": "Open",
@@ -617,6 +625,14 @@ const ar: Partial<Record<keyof typeof en, string>> = {
   "settings.signOut": "تسجيل الخروج",
   "settings.footer": "نظام ملاحظات السلامة · v1.0",
   "settings.downloadFailed": "فشل التحميل",
+  "settings.notifications": "الإشعارات",
+  "settings.reportAlerts": "تنبيهات البلاغات",
+  "settings.reportAlertsNeedsInstall":
+    "ثبّت التطبيق على الشاشة الرئيسية أولاً (زر المشاركة في Safari) عشان تقدر تفعّلها.",
+  "settings.reportAlertsEnabledDesc": "مفعّلة — بتوصلك البلاغات والتحديثات الجديدة.",
+  "settings.reportAlertsDisabledDesc": "فعّلها عشان توصلك البلاغات والتحديثات الجديدة أول بأول.",
+  "settings.reportAlertsEnabledBadge": "مفعّلة",
+  "settings.reportAlertsEnableCta": "فعّل",
 
   "stats.header": "الإحصائيات — أسبوع مقابل أسبوع",
   "stats.open": "مفتوحة",
@@ -946,6 +962,13 @@ const zh: Partial<Record<keyof typeof en, string>> = {
   "settings.signOut": "退出登录",
   "settings.footer": "HSE 安全观察系统 · v1.0",
   "settings.downloadFailed": "下载失败",
+  "settings.notifications": "通知",
+  "settings.reportAlerts": "举报提醒",
+  "settings.reportAlertsNeedsInstall": "请先将应用添加到主屏幕（Safari 中的分享按钮），才能开启此功能。",
+  "settings.reportAlertsEnabledDesc": "已开启 — 新的举报和更新会第一时间通知你。",
+  "settings.reportAlertsDisabledDesc": "开启后可第一时间收到新的举报和更新。",
+  "settings.reportAlertsEnabledBadge": "已开启",
+  "settings.reportAlertsEnableCta": "开启",
 
   "stats.header": "统计 — 周环比",
   "stats.open": "未处理",

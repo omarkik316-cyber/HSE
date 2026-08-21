@@ -17,3 +17,13 @@ export function isIosSafari(): boolean {
   const isSafariEngine = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Android/.test(ua);
   return (isIphoneOrIpod || isIpad) && isSafariEngine;
 }
+
+// يكتشف تحديدًا آيفون (يستثني آيباد وآيبود) داخل Safari الحقيقي. يُستخدم
+// للميزات اللي نبي نقصرها على آيفون فقط، مثل خانة "تنبيهات البلاغات" في
+// الإعدادات.
+export function isIphone(): boolean {
+  const ua = navigator.userAgent;
+  const isIphoneDevice = /iPhone/.test(ua);
+  const isSafariEngine = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|Chrome|Android/.test(ua);
+  return isIphoneDevice && isSafariEngine;
+}

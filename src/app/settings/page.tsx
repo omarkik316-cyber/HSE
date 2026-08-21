@@ -31,7 +31,7 @@ import {
   onPushPermissionChange,
   requestPushPermissionOnUserGesture,
 } from "@/lib/push/onesignal";
-import { isIosSafari, isRunningAsInstalledApp } from "@/lib/push/deviceDetect";
+import { isIosSafari, isRunningAsInstalledApp, isIphone } from "@/lib/push/deviceDetect";
 
 function SegmentedControl<T extends string>({
   value,
@@ -169,8 +169,11 @@ export default function SettingsPage() {
   // dialog — no polling needed.
   const [pushGranted, setPushGranted] = useState<boolean | null>(null);
   const [needsInstallFirst, setNeedsInstallFirst] = useState(false);
+  // خانة "تنبيهات البلاغات" مقصورة على آيفون فقط — باقي الأجهزة ما تشوفها.
+  const [showPushSetting, setShowPushSetting] = useState(false);
 
   useEffect(() => {
+    setShowPushSetting(isIphone());
     setNeedsInstallFirst(isIosSafari() && !isRunningAsInstalledApp());
     getPushPermission().then(setPushGranted);
     return onPushPermissionChange(setPushGranted);
@@ -337,38 +340,40 @@ export default function SettingsPage() {
           />
         </SettingsGroup>
 
-        <SettingsGroup title="الإشعارات">
-          <div className="px-4 py-3.5 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-800 dark:text-slate-100">تنبيهات البلاغات</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                {needsInstallFirst
-                  ? "ثبّت التطبيق على الشاشة الرئيسية أولاً (زر المشاركة في Safari) عشان تقدر تفعّلها."
-                  : pushGranted
-                  ? "مفعّلة — بتوصلك البلاغات والتحديثات الجديدة."
-                  : "فعّلها عشان توصلك البلاغات والتحديثات الجديدة أول بأول."}
-              </p>
+        {showPushSetting && (
+          <SettingsGroup title={t("settings.notifications")}>
+            <div className="px-4 py-3.5 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{t("settings.reportAlerts")}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                  {needsInstallFirst
+                    ? t("settings.reportAlertsNeedsInstall")
+                    : pushGranted
+                    ? t("settings.reportAlertsEnabledDesc")
+                    : t("settings.reportAlertsDisabledDesc")}
+                </p>
+              </div>
+              <div className="shrink-0">
+                {pushGranted === null ? null : pushGranted ? (
+                  <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {t("settings.reportAlertsEnabledBadge")}
+                  </span>
+                ) : (
+                  <button
+                    onClick={handleEnablePush}
+                    disabled={needsInstallFirst}
+                    className="tap text-xs font-semibold py-2 px-3.5 rounded-xl bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white whitespace-nowrap"
+                  >
+                    {t("settings.reportAlertsEnableCta")}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="shrink-0">
-              {pushGranted === null ? null : pushGranted ? (
-                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  مفعّلة
-                </span>
-              ) : (
-                <button
-                  onClick={handleEnablePush}
-                  disabled={needsInstallFirst}
-                  className="tap text-xs font-semibold py-2 px-3.5 rounded-xl bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white whitespace-nowrap"
-                >
-                  فعّل
-                </button>
-              )}
-            </div>
-          </div>
-        </SettingsGroup>
+          </SettingsGroup>
+        )}
 
         <SettingsGroup title={t("settings.appMode")}>
           <div className="p-3 flex gap-2.5">
