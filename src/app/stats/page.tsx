@@ -325,9 +325,14 @@ export default function StatsPage() {
   const topReporter = topReporters[0] ?? null;
 
   if (!session) {
+    // authChecked is true and there's no session, so the redirect effect
+    // above is already sending them to /login — this link is just a
+    // fallback in case that navigation is ever slow to kick in.
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <div className="text-slate-400">{t("common.loading")}</div>
+        <a href="/login" className="text-blue-600 dark:text-blue-400 underline text-sm font-medium">
+          {t("login.signIn")}
+        </a>
       </div>
     );
   }

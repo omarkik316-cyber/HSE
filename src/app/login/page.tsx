@@ -34,12 +34,15 @@ export default function LoginPage() {
     const e164Phone = toE164(phone);
 
     try {
+      let signedInUserId: string | null = null;
+
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           phone: e164Phone,
           password,
         });
         if (error) throw error;
+        signedInUserId = data.user?.id ?? null;
       } else {
         const { error } = await supabase.auth.signUp({
           phone: e164Phone,
@@ -50,7 +53,22 @@ export default function LoginPage() {
       }
       // Starts (or restarts) the 24h clock from this successful sign-in/up.
       markLoginNow();
-      router.push("/");
+
+      // An admin may have reset this account's password to a temporary
+      // one (see admin/users "Reset password"). In that case send them
+      // straight to set their own new password instead of the dashboard —
+      // never let a temporary password stay usable past the first login.
+      let mustChangePassword = false;
+      if (signedInUserId) {
+        const { data: profileRow } = await supabase
+          .from("profiles")
+          .select("force_password_change")
+          .eq("id", signedInUserId)
+          .single();
+        mustChangePassword = !!profileRow?.force_password_change;
+      }
+
+      router.push(mustChangePassword ? "/change-password" : "/");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("login.authFailed"));

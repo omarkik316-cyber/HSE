@@ -152,6 +152,15 @@ export default function DashboardPage() {
     })();
   }, [session]);
 
+  // Safety net: someone can be sitting on a still-valid session with
+  // force_password_change left on — e.g. they closed the app right after
+  // an admin reset their password, before ever reaching /change-password.
+  // The login page already routes there on fresh sign-in; this covers
+  // reopening the app mid-flow instead.
+  useEffect(() => {
+    if (profile?.force_password_change) router.replace("/change-password");
+  }, [profile, router]);
+
   const fetchObservations = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -357,9 +366,14 @@ export default function DashboardPage() {
 
 
   if (!session) {
+    // authChecked is true and there's no session, so the redirect effect
+    // above is already sending them to /login — this link is just a
+    // fallback in case that navigation is ever slow to kick in.
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <div className="text-slate-400">{t("common.loading")}</div>
+        <a href="/login" className="text-blue-600 dark:text-blue-400 underline text-sm font-medium">
+          {t("login.signIn")}
+        </a>
       </div>
     );
   }

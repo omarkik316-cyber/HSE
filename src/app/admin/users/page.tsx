@@ -30,6 +30,13 @@ export default function AdminUsersPage() {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  // Holds the just-generated temporary password so it can be shown once in
+  // a modal — never persisted anywhere, never shown again after closing.
+  const [resetResult, setResetResult] = useState<{ userId: string; name: string; tempPassword: string } | null>(
+    null
+  );
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -113,8 +120,55 @@ export default function AdminUsersPage() {
     fetchUsers();
   }
 
-  if (loadingProfile || !session) {
+  async function resetPassword(u: Profile) {
+    if (!confirm(t("admin.resetPasswordConfirm", { name: u.full_name }))) return;
+    setResettingId(u.id);
+    setMessage(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke<{ tempPassword?: string; error?: string }>(
+        "admin-reset-password",
+        { body: { userId: u.id } }
+      );
+      if (error) throw error;
+      if (!data?.tempPassword) throw new Error(data?.error || "no password returned");
+
+      setResetResult({ userId: u.id, name: u.full_name, tempPassword: data.tempPassword });
+      setCopied(false);
+    } catch (err) {
+      setMessage(t("admin.resetPasswordFailed", { msg: err instanceof Error ? err.message : String(err) }));
+    } finally {
+      setResettingId(null);
+    }
+  }
+
+  async function copyTempPassword() {
+    if (!resetResult) return;
+    try {
+      await navigator.clipboard.writeText(resetResult.tempPassword);
+      setCopied(true);
+    } catch {
+      // Clipboard API can be unavailable (older WebViews, no HTTPS, etc.) —
+      // the password is still shown on screen and can be copied manually,
+      // so this failure is silent rather than blocking anything.
+    }
+  }
+
+  if (loadingProfile) {
     return <div className="h-dvh flex items-center justify-center text-slate-400">{t("common.loading")}</div>;
+  }
+
+  if (!session) {
+    // authChecked is true and there's no session, so the redirect effect
+    // above is already sending them to /login — this link is just a
+    // fallback in case that navigation is ever slow to kick in.
+    return (
+      <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
+        <a href="/login" className="text-blue-600 dark:text-blue-400 underline text-sm font-medium">
+          {t("login.signIn")}
+        </a>
+      </div>
+    );
   }
 
   if (profile?.role !== "admin") {
@@ -200,13 +254,22 @@ export default function AdminUsersPage() {
                     </div>
                   </div>
 
-                  <button
-                    disabled={!dirty || savingId === u.id}
-                    onClick={() => saveUser(u.id)}
-                    className="tap w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-30"
-                  >
-                    {savingId === u.id ? t("common.saving") : t("common.save")}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      disabled={!dirty || savingId === u.id}
+                      onClick={() => saveUser(u.id)}
+                      className="tap flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-30"
+                    >
+                      {savingId === u.id ? t("common.saving") : t("common.save")}
+                    </button>
+                    <button
+                      disabled={resettingId === u.id}
+                      onClick={() => resetPassword(u)}
+                      className="tap flex-1 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg text-sm font-medium disabled:opacity-30"
+                    >
+                      {resettingId === u.id ? t("admin.resetPasswordWorking") : t("admin.resetPassword")}
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -273,13 +336,22 @@ export default function AdminUsersPage() {
                         />
                       </td>
                       <td className="px-4 py-2">
-                        <button
-                          disabled={!dirty || savingId === u.id}
-                          onClick={() => saveUser(u.id)}
-                          className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium disabled:opacity-30"
-                        >
-                          {savingId === u.id ? t("common.saving") : t("common.save")}
-                        </button>
+                        <div className="flex gap-1.5">
+                          <button
+                            disabled={!dirty || savingId === u.id}
+                            onClick={() => saveUser(u.id)}
+                            className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-medium disabled:opacity-30"
+                          >
+                            {savingId === u.id ? t("common.saving") : t("common.save")}
+                          </button>
+                          <button
+                            disabled={resettingId === u.id}
+                            onClick={() => resetPassword(u)}
+                            className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-medium disabled:opacity-30 whitespace-nowrap"
+                          >
+                            {resettingId === u.id ? t("admin.resetPasswordWorking") : t("admin.resetPassword")}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -296,6 +368,40 @@ export default function AdminUsersPage() {
           </div>
         </div>
       </div>
+
+      {resetResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4">
+            <div>
+              <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                {t("admin.resetPasswordSuccessTitle", { name: resetResult.name })}
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                {t("admin.resetPasswordSuccessDesc")}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl px-4 py-3">
+              <span className="text-lg font-mono font-semibold tracking-wide text-slate-900 dark:text-slate-50" dir="ltr">
+                {resetResult.tempPassword}
+              </span>
+              <button
+                onClick={copyTempPassword}
+                className="tap shrink-0 text-xs font-semibold text-blue-600 dark:text-blue-400 px-2 py-1"
+              >
+                {copied ? t("admin.resetPasswordCopied") : t("admin.resetPasswordCopy")}
+              </button>
+            </div>
+
+            <button
+              onClick={() => setResetResult(null)}
+              className="tap w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold"
+            >
+              {t("admin.resetPasswordDone")}
+            </button>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
     </div>

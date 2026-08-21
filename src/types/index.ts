@@ -9,6 +9,10 @@ export interface Profile {
   company: string | null;
   phone: string | null;
   created_at: string;
+  // Set to true by an admin's "reset password" action. The signed-in user
+  // is forced to /change-password until they set their own new password,
+  // which clears this back to false.
+  force_password_change?: boolean;
 }
 
 export interface ObservationPhoto {
