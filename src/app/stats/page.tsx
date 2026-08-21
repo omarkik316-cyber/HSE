@@ -8,6 +8,7 @@ import type { Observation, Profile, ObservationPriority } from "@/types";
 import { getZoneColor } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 import BottomNav from "@/components/BottomNav";
+import RoleAvatar from "@/components/RoleAvatar";
 import { useT, roleLabel, priorityLabel } from "@/lib/i18n";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import {
@@ -94,13 +95,6 @@ function Delta({ current, previous }: { current: number; previous: number }) {
       {up ? "▲" : "▼"} {Math.abs(pct)}% {t("stats.vsLastWeek")}
     </span>
   );
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -394,9 +388,7 @@ export default function StatsPage() {
                   <div className="text-[11px] font-medium uppercase tracking-wide text-emerald-50/90">{t("stats.topCloser")}</div>
                   {topCloser ? (
                     <div className="flex items-center gap-3 mt-2">
-                      <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold shrink-0">
-                        {initials(topCloser.name)}
-                      </div>
+                      <RoleAvatar role={topCloser.role} className="bg-white/20" />
                       <div className="min-w-0">
                         <div className="font-semibold text-[15px] truncate">{topCloser.name}</div>
                         <div className="text-xs text-emerald-50/90">
@@ -413,9 +405,7 @@ export default function StatsPage() {
                   <div className="text-[11px] font-medium uppercase tracking-wide text-blue-50/90">{t("stats.topReporter")}</div>
                   {topReporter ? (
                     <div className="flex items-center gap-3 mt-2">
-                      <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold shrink-0">
-                        {initials(topReporter.name)}
-                      </div>
+                      <RoleAvatar role={topReporter.role} className="bg-white/20" />
                       <div className="min-w-0">
                         <div className="font-semibold text-[15px] truncate">{topReporter.name}</div>
                         <div className="text-xs text-blue-50/90">

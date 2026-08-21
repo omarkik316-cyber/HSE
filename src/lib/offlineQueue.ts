@@ -30,7 +30,18 @@ export interface PendingObservationInput {
   photo: File | null;
 }
 
-export interface PendingObservationRecord extends PendingObservationInput {
+// A raw `File` object can't be reliably written to IndexedDB on every
+// device — some Android WebViews fail to structured-clone/store it at all,
+// silently, which was taking the *entire* report down with it (see
+// addPendingObservation below). Converting to plain bytes + metadata before
+// it ever reaches IndexedDB is what every device can store.
+interface StoredPhoto {
+  name: string;
+  type: string;
+  data: ArrayBuffer;
+}
+
+export interface PendingObservationRecord extends Omit<PendingObservationInput, "photo"> {
   id: string;
   createdAt: number;
   status: "pending" | "syncing" | "failed" | "partial";
@@ -47,6 +58,21 @@ export interface PendingObservationRecord extends PendingObservationInput {
   // "partial" case: the report itself is already live and visible to
   // everyone, just missing its photo.
   photoUploaded?: boolean;
+  photo: StoredPhoto | null;
+  // True when a photo was attached but couldn't be stored on the device at
+  // all (as opposed to photoUploaded=false, which just means "not sent to
+  // the server yet"). The report itself is still saved and queued — only
+  // the photo was dropped.
+  photoDropped?: boolean;
+}
+
+async function fileToStoredPhoto(file: File): Promise<StoredPhoto> {
+  const data = await file.arrayBuffer();
+  return { name: file.name, type: file.type, data };
+}
+
+function storedPhotoToFile(photo: StoredPhoto): File {
+  return new File([photo.data], photo.name, { type: photo.type });
 }
 
 const DB_NAME = "hse-offline-queue";
@@ -110,17 +136,50 @@ export async function addPendingObservation(input: PendingObservationInput): Pro
   // path compresses once before attempting the direct upload) — compressing
   // an already-small file is a cheap no-op, so it's safe to do here too for
   // any caller that skips that step.
-  const photo = input.photo ? await compressImage(input.photo) : null;
+  const compressed = input.photo ? await compressImage(input.photo) : null;
+
+  let storedPhoto: StoredPhoto | null = null;
+  let photoDropped = false;
+  if (compressed) {
+    try {
+      storedPhoto = await fileToStoredPhoto(compressed);
+    } catch (err) {
+      // Reading the file into bytes failed (very rare) — don't let that
+      // take the report down with it, just carry on without the photo.
+      console.error("Failed to prepare photo for offline storage:", err);
+      photoDropped = true;
+    }
+  }
+
+  const { photo: _inputPhoto, ...rest } = input;
   const record: PendingObservationRecord = {
-    ...input,
-    photo,
+    ...rest,
+    photo: storedPhoto,
+    photoDropped,
     id: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: Date.now(),
     status: "pending",
     lastError: null,
     attempts: 0,
   };
-  await withStore("readwrite", (store) => store.put(record));
+
+  try {
+    await withStore("readwrite", (store) => store.put(record));
+  } catch (err) {
+    // Belt-and-suspenders: even plain bytes can fail to persist on a
+    // device that's completely out of storage. Never let that take the
+    // whole report down — drop the photo and save the report text-only
+    // instead of losing it outright.
+    if (record.photo) {
+      console.error("Failed to store photo offline, saving report without it:", err);
+      record.photo = null;
+      record.photoDropped = true;
+      await withStore("readwrite", (store) => store.put(record));
+    } else {
+      throw err;
+    }
+  }
+
   notifyListeners();
   return record;
 }
@@ -191,12 +250,13 @@ async function submitPendingObservation(record: PendingObservationRecord): Promi
     // already set on the record, or the block above just set it.
     const photoObservationId = observationId as string;
     try {
-      const fileExt = record.photo.name.split(".").pop();
+      const file = storedPhotoToFile(record.photo);
+      const fileExt = file.name.split(".").pop();
       const filePath = `${photoObservationId}/before-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("observation-photos")
-        .upload(filePath, record.photo);
+        .upload(filePath, file);
       if (uploadError) throw uploadError;
 
       const { data: publicUrl } = supabase.storage.from("observation-photos").getPublicUrl(filePath);

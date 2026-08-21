@@ -185,7 +185,7 @@ export default function ObservationForm({
       // the same way a chat app holds an unsent message and retries it.
       if (isLikelyNetworkError(err)) {
         try {
-          await addPendingObservation({
+          const queued = await addPendingObservation({
             title,
             description,
             category,
@@ -199,7 +199,9 @@ export default function ObservationForm({
             photo: uploadPhoto,
           });
           setSubmitting(false);
-          onQueued?.(t("obsForm.queuedMessage"));
+          onQueued?.(
+            queued.photoDropped ? t("obsForm.queuedNoPhotoMessage") : t("obsForm.queuedMessage")
+          );
           onCreated();
           return;
         } catch (queueErr) {

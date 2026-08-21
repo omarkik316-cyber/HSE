@@ -14,6 +14,7 @@ import {
 } from "@/lib/settings";
 import BottomNav from "@/components/BottomNav";
 import PendingUploads from "@/components/PendingUploads";
+import RoleAvatar from "@/components/RoleAvatar";
 import type { Profile } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -300,9 +301,7 @@ export default function SettingsPage() {
         {profile && (
           <SettingsGroup title={t("settings.account")}>
             <div className="px-4 py-4 flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold text-base shrink-0">
-                {profile.full_name?.[0]?.toUpperCase() ?? "?"}
-              </div>
+              <RoleAvatar role={profile.role} />
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
                   {profile.full_name}

@@ -141,6 +141,8 @@ const en = {
   "obsForm.createFailed": "Failed to create observation",
   "obsForm.queuedMessage":
     "Weak connection — the observation was saved on your device and will be sent automatically. Check Settings to follow up.",
+  "obsForm.queuedNoPhotoMessage":
+    "Weak connection — the observation was saved on your device, but the photo couldn't be stored offline so it was saved without it. Check Settings to follow up.",
   "obsForm.savedToast": "Observation saved",
 
   "detail.editObservation": "Edit Observation",
@@ -242,6 +244,7 @@ const en = {
   "pending.delete": "Delete",
   "pending.partial": "Report sent — photo still pending",
   "pending.dismissPhoto": "Give up on photo",
+  "pending.photoDropped": "Saved without the photo — your device couldn't store it offline",
 
   "settings.title": "Settings",
   "settings.account": "Account",
@@ -511,6 +514,8 @@ const ar: Partial<Record<keyof typeof en, string>> = {
   "obsForm.createFailed": "فشل إنشاء الملاحظة",
   "obsForm.queuedMessage":
     "الاتصال ضعيف — تم حفظ الملاحظة على جهازك وسيتم إرسالها تلقائيًا. راجع الإعدادات لمتابعتها.",
+  "obsForm.queuedNoPhotoMessage":
+    "الاتصال ضعيف — تم حفظ الملاحظة على جهازك، لكن تعذّر حفظ الصورة بدون اتصال فتم حفظ الملاحظة بدونها. راجع الإعدادات لمتابعتها.",
   "obsForm.savedToast": "تم حفظ الملاحظة",
 
   "detail.editObservation": "تعديل الملاحظة",
@@ -609,6 +614,7 @@ const ar: Partial<Record<keyof typeof en, string>> = {
   "pending.delete": "حذف",
   "pending.partial": "تم إرسال البلاغ — الصورة لسه ما انرفعت",
   "pending.dismissPhoto": "تجاهل الصورة",
+  "pending.photoDropped": "تم الحفظ بدون الصورة — جهازك ما قدر يخزّنها بدون نت",
 
   "settings.title": "الإعدادات",
   "settings.account": "الحساب",
@@ -873,6 +879,7 @@ const zh: Partial<Record<keyof typeof en, string>> = {
   "obsForm.permissionDenied": "权限被拒绝：你的账户角色无权创建观察记录。请让管理员在“管理用户”页面检查你的角色。（{details}）",
   "obsForm.createFailed": "创建观察记录失败",
   "obsForm.queuedMessage": "网络较弱 — 观察记录已保存在你的设备上，将自动发送。可在设置中查看进度。",
+  "obsForm.queuedNoPhotoMessage": "网络较弱 — 观察记录已保存在你的设备上，但照片无法离线保存，因此记录已不带照片保存。可在设置中查看进度。",
   "obsForm.savedToast": "观察记录已保存",
 
   "detail.editObservation": "编辑观察记录",
@@ -967,6 +974,7 @@ const zh: Partial<Record<keyof typeof en, string>> = {
   "pending.delete": "删除",
   "pending.partial": "报告已发送——照片仍待上传",
   "pending.dismissPhoto": "放弃上传照片",
+  "pending.photoDropped": "已保存但不含照片——你的设备无法离线保存照片",
 
   "settings.title": "设置",
   "settings.account": "账户",

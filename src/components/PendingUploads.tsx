@@ -96,6 +96,11 @@ export default function PendingUploads() {
               {item.status === "partial" && item.lastError && (
                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">{item.lastError}</p>
               )}
+              {item.photoDropped && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  {t("pending.photoDropped")}
+                </p>
+              )}
             </div>
             <div className="shrink-0 flex items-center gap-1.5">
               <button
