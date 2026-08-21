@@ -15,6 +15,14 @@ const withPWA = require("@ducanh2912/next-pwa").default({
       { url: "/settings/", revision: null },
       { url: "/stats/", revision: null },
       { url: "/admin/users/", revision: null },
+      // The browser requests these directly (the <link rel="manifest">
+      // tag, the PWA install icon) outside of any page navigation, so
+      // without an explicit entry here they were never guaranteed to be
+      // in the precache — which is exactly what showed up as a raw
+      // ERR_INTERNET_DISCONNECTED for /manifest.json in the console the
+      // moment the app was opened offline.
+      { url: "/manifest.json", revision: null },
+      { url: "/icons/icon.svg", revision: null },
     ],
     runtimeCaching: [
       {
@@ -51,6 +59,27 @@ const withPWA = require("@ducanh2912/next-pwa").default({
         handler: "StaleWhileRevalidate",
         options: {
           cacheName: "app-data",
+          cacheableResponse: { statuses: [0, 200] },
+        },
+      },
+      {
+        // THE missing piece that made "Download for offline" in Settings a
+        // no-op: without a runtime-caching route matching the tile
+        // servers, the service worker never intercepted (or stored) a
+        // single tile request — so the download button's fetch() calls
+        // just hit the network and threw the response away, and the map
+        // still needed a live connection every time, no matter how many
+        // times someone hit "Download". This is what actually makes tiles
+        // land in (and get served back out of) the "map-tiles" cache,
+        // whether they arrive via normal panning or the offline-download
+        // button in Settings. Cross-origin tile responses come back opaque
+        // (status 0), so status 0 has to be explicitly cacheable here.
+        urlPattern: ({ url }) =>
+          url.hostname === "server.arcgisonline.com" || url.hostname.endsWith("tile.openstreetmap.org"),
+        handler: "CacheFirst",
+        options: {
+          cacheName: "map-tiles",
+          expiration: { maxEntries: 20000, maxAgeSeconds: 180 * 24 * 60 * 60 },
           cacheableResponse: { statuses: [0, 200] },
         },
       },

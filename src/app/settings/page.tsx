@@ -26,6 +26,12 @@ import {
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { cacheProfile, getCachedProfile } from "@/lib/localCache";
 import { useT, roleLabel } from "@/lib/i18n";
+import {
+  getPushPermission,
+  onPushPermissionChange,
+  requestPushPermissionOnUserGesture,
+} from "@/lib/push/onesignal";
+import { isIosSafari, isRunningAsInstalledApp } from "@/lib/push/deviceDetect";
 
 function SegmentedControl<T extends string>({
   value,
@@ -157,6 +163,25 @@ export default function SettingsPage() {
   const [progress, setProgress] = useState<OfflineDownloadProgress | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // null = still checking. Starts as whatever OneSignal currently reports,
+  // then updates live the instant the person answers the native permission
+  // dialog — no polling needed.
+  const [pushGranted, setPushGranted] = useState<boolean | null>(null);
+  const [needsInstallFirst, setNeedsInstallFirst] = useState(false);
+
+  useEffect(() => {
+    setNeedsInstallFirst(isIosSafari() && !isRunningAsInstalledApp());
+    getPushPermission().then(setPushGranted);
+    return onPushPermissionChange(setPushGranted);
+  }, []);
+
+  function handleEnablePush() {
+    // Must be the very first thing that runs in this handler — iOS only
+    // shows its native "Allow" dialog when the request happens
+    // synchronously inside a real tap.
+    requestPushPermissionOnUserGesture();
+  }
 
   function refreshCacheInfo() {
     getOfflineCacheInfo().then((info) => setCachedTiles(info?.tileCount ?? null));
@@ -310,6 +335,39 @@ export default function SettingsPage() {
               />
             }
           />
+        </SettingsGroup>
+
+        <SettingsGroup title="الإشعارات">
+          <div className="px-4 py-3.5 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-100">تنبيهات البلاغات</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                {needsInstallFirst
+                  ? "ثبّت التطبيق على الشاشة الرئيسية أولاً (زر المشاركة في Safari) عشان تقدر تفعّلها."
+                  : pushGranted
+                  ? "مفعّلة — بتوصلك البلاغات والتحديثات الجديدة."
+                  : "فعّلها عشان توصلك البلاغات والتحديثات الجديدة أول بأول."}
+              </p>
+            </div>
+            <div className="shrink-0">
+              {pushGranted === null ? null : pushGranted ? (
+                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  مفعّلة
+                </span>
+              ) : (
+                <button
+                  onClick={handleEnablePush}
+                  disabled={needsInstallFirst}
+                  className="tap text-xs font-semibold py-2 px-3.5 rounded-xl bg-blue-600 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white whitespace-nowrap"
+                >
+                  فعّل
+                </button>
+              )}
+            </div>
+          </div>
         </SettingsGroup>
 
         <SettingsGroup title={t("settings.appMode")}>

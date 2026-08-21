@@ -49,6 +49,22 @@ export function getPushPermission(): Promise<boolean> {
   });
 }
 
+/**
+ * Fires whenever push permission changes (granted or revoked) — used by the
+ * Settings page to hide the "enable" button the instant the person answers
+ * the native iOS dialog, without needing to poll.
+ */
+export function onPushPermissionChange(handler: (granted: boolean) => void) {
+  let cleanup: (() => void) | undefined;
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  window.OneSignalDeferred.push((OneSignal: any) => {
+    const listener = (granted: boolean) => handler(Boolean(granted));
+    OneSignal.Notifications.addEventListener("permissionChange", listener);
+    cleanup = () => OneSignal.Notifications.removeEventListener("permissionChange", listener);
+  });
+  return () => cleanup?.();
+}
+
 export type PushClickPayload = {
   title: string;
   message: string;
