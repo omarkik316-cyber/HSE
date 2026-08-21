@@ -4,15 +4,36 @@ import type { NotificationRecord, NotificationTemplate, ObservationStatus } from
 const RECENT_LIMIT = 60;
 
 /**
+ * Android notification channel to use for a given push, so each event type
+ * on the phone plays its own distinct sound (set up in the Android app's
+ * HSEApplication.kt — createNotificationChannels()). Must match one of
+ * those channel IDs exactly, or OneSignal falls back to its default channel
+ * and the default sound. Keep this list in sync with the Android app.
+ */
+export type PushChannel =
+  | "new_observation"
+  | "observation_in_progress"
+  | "observation_closed"
+  | "supervisor_approved"
+  | "supervisor_rejected"
+  | "meeting"
+  | "site_walk";
+
+/**
  * Fires the real push notification (shows up in the phone's notification
  * tray, even with the app closed) via the send-push Edge Function. This is
  * best-effort and never throws — a push failure should never block the
  * in-app notification from being saved, since the bell already covers
  * anyone with the app open.
  */
-async function triggerPush(title: string, message: string, observationId?: string) {
+async function triggerPush(
+  title: string,
+  message: string,
+  observationId?: string,
+  channel?: PushChannel
+) {
   try {
-    await supabase.functions.invoke("send-push", { body: { title, message, observationId } });
+    await supabase.functions.invoke("send-push", { body: { title, message, observationId, channel } });
   } catch (err) {
     console.error("Push notification failed to send:", err);
   }
@@ -90,7 +111,7 @@ export async function notifyObservationCreated(params: {
     console.error("Failed to send observation-created notification:", error.message);
     return;
   }
-  triggerPush("New Observation", message, params.observationId);
+  triggerPush("New Observation", message, params.observationId, "new_observation");
 }
 
 const STATUS_NOTIFICATION_TEXT: Record<ObservationStatus, string> = {
@@ -100,18 +121,41 @@ const STATUS_NOTIFICATION_TEXT: Record<ObservationStatus, string> = {
   closed: "was approved and closed",
 };
 
+// Default channel per resulting status. "in_progress" is deliberately absent
+// here — it's reached both by someone claiming a fresh observation (see
+// `context: "claimed"` below) and by a supervisor rejecting a submitted fix
+// (`context: "rejected"`), and those two need different sounds even though
+// they land on the same status value.
+const STATUS_CHANNEL: Partial<Record<ObservationStatus, PushChannel>> = {
+  closed: "supervisor_approved",
+};
+
 export async function notifyStatusChanged(params: {
   title: string;
   zoneName: string | null;
   observationId: string;
   newStatus: ObservationStatus;
   actorId: string;
+  // Disambiguates the two real-world events that both set status to
+  // "in_progress": a contractor/officer claiming a fresh observation, vs an
+  // admin rejecting a submitted fix and sending it back for rework.
+  context?: "claimed" | "rejected";
+  rejectReason?: string;
 }) {
   const zonePart = params.zoneName ? ` in ${params.zoneName}` : "";
-  const message = `"${params.title}"${zonePart} ${STATUS_NOTIFICATION_TEXT[params.newStatus]}.`;
+  const isRejection = params.context === "rejected";
+
+  const message = isRejection
+    ? `"${params.title}"${zonePart} was rejected by the reviewer${
+        params.rejectReason ? `: ${params.rejectReason}` : ""
+      }`
+    : `"${params.title}"${zonePart} ${STATUS_NOTIFICATION_TEXT[params.newStatus]}.`;
+
+  const title = isRejection ? "Fix Rejected" : "Observation Update";
+
   const { error } = await supabase.from("notifications").insert({
     type: "status_changed",
-    title: "Observation Update",
+    title,
     message,
     zone_name: params.zoneName,
     observation_id: params.observationId,
@@ -121,10 +165,24 @@ export async function notifyStatusChanged(params: {
     console.error("Failed to send status-changed notification:", error.message);
     return;
   }
-  triggerPush("Observation Update", message, params.observationId);
+
+  const channel: PushChannel | undefined = isRejection
+    ? "supervisor_rejected"
+    : params.context === "claimed"
+      ? "observation_in_progress"
+      : STATUS_CHANNEL[params.newStatus];
+
+  triggerPush(title, message, params.observationId, channel);
 }
 
-export async function sendAdminBroadcast(params: { title: string; message: string; createdBy: string }) {
+export async function sendAdminBroadcast(params: {
+  title: string;
+  message: string;
+  createdBy: string;
+  // Lets the composer flag a broadcast as a meeting or site-walk call so it
+  // rings with its own sound instead of the generic broadcast/default one.
+  category?: "meeting" | "site_walk" | "general";
+}) {
   const { error } = await supabase.from("notifications").insert({
     type: "admin_broadcast",
     title: params.title,
@@ -132,7 +190,9 @@ export async function sendAdminBroadcast(params: { title: string; message: strin
     created_by: params.createdBy,
   });
   if (error) throw error;
-  triggerPush(params.title, params.message);
+  const channel: PushChannel | undefined =
+    params.category === "meeting" ? "meeting" : params.category === "site_walk" ? "site_walk" : undefined;
+  triggerPush(params.title, params.message, undefined, channel);
 }
 
 export async function fetchTemplates(): Promise<NotificationTemplate[]> {

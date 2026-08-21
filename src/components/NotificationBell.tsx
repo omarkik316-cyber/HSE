@@ -42,6 +42,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [composeTitle, setComposeTitle] = useState("");
   const [composeMessage, setComposeMessage] = useState("");
+  const [composeCategory, setComposeCategory] = useState<"general" | "meeting" | "site_walk">("general");
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [sending, setSending] = useState(false);
   const [composeError, setComposeError] = useState<string | null>(null);
@@ -107,6 +108,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
     setComposeError(null);
     setComposeTitle(fromTemplate?.title ?? "");
     setComposeMessage(fromTemplate?.message ?? "");
+    setComposeCategory("general");
     setSaveAsTemplate(false);
     setView("compose");
   }
@@ -123,6 +125,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
         title: composeTitle.trim(),
         message: composeMessage.trim(),
         createdBy: profile.id,
+        category: composeCategory,
       });
       if (saveAsTemplate) {
         await createTemplate(composeTitle.trim(), composeMessage.trim(), profile.id);
@@ -130,6 +133,7 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
       }
       setComposeTitle("");
       setComposeMessage("");
+      setComposeCategory("general");
       setView("list");
       reload();
     } catch (err) {
@@ -307,6 +311,22 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                       placeholder={t("notif.broadcastTitlePlaceholder")}
                       className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
                     />
+                  </div>
+                  <div>
+                    <label htmlFor="broadcast-category" className="block text-sm font-medium mb-1">
+                      {t("notif.category")}
+                    </label>
+                    <select
+                      id="broadcast-category"
+                      name="broadcast_category"
+                      value={composeCategory}
+                      onChange={(e) => setComposeCategory(e.target.value as "general" | "meeting" | "site_walk")}
+                      className="w-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl px-3 py-2.5 text-sm"
+                    >
+                      <option value="general">{t("notif.categoryGeneral")}</option>
+                      <option value="meeting">{t("notif.categoryMeeting")}</option>
+                      <option value="site_walk">{t("notif.categorySiteWalk")}</option>
+                    </select>
                   </div>
                   <div>
                     <label htmlFor="broadcast-message" className="block text-sm font-medium mb-1">{t("notif.message")}</label>

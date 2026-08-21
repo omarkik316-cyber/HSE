@@ -29,7 +29,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { title, message, observationId } = await req.json();
+    // `channel` is optional and, when present, must match one of the
+    // Android notification channel IDs created in HSEApplication.kt
+    // (e.g. "new_observation", "supervisor_approved", "meeting", ...) — see
+    // src/lib/notifications.ts for where each event picks its channel.
+    const { title, message, observationId, channel } = await req.json();
 
     if (!title || !message) {
       return new Response(JSON.stringify({ error: "title and message are required" }), {
@@ -84,6 +88,13 @@ Deno.serve(async (req: Request) => {
         // when the tab was already open in the foreground.
         data: observationId ? { observationId } : undefined,
         ...(url ? { url } : {}),
+        // Routes the notification through one of the Android channels
+        // created natively in HSEApplication.kt, so it plays that channel's
+        // sound instead of OneSignal's default one. Channel sound is fixed
+        // at creation time on the device, so this only ever picks *which*
+        // already-created channel to use — it can't change a sound
+        // per-notification. Harmless no-op on iOS/web; only read on Android.
+        ...(channel ? { existing_android_channel_id: channel } : {}),
       }),
     });
 

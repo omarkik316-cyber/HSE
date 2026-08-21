@@ -137,7 +137,8 @@ export default function ObservationDetail({ observation, userId, userName, userR
   async function changeStatus(
     newStatus: ObservationStatus,
     actionComment: string,
-    extraPayload: Record<string, unknown> = {}
+    extraPayload: Record<string, unknown> = {},
+    notifyContext?: { context?: "claimed" | "rejected"; rejectReason?: string }
   ) {
     setBusy(true);
     try {
@@ -182,6 +183,8 @@ export default function ObservationDetail({ observation, userId, userName, userR
         observationId: observation.id,
         newStatus,
         actorId: userId,
+        context: notifyContext?.context,
+        rejectReason: notifyContext?.rejectReason,
       });
 
       onUpdated();
@@ -206,7 +209,12 @@ export default function ObservationDetail({ observation, userId, userName, userR
       alert(t("detail.reasonRequired"));
       return;
     }
-    await changeStatus("in_progress", t("detail.rejectedComment", { reason: rejectReason.trim() }));
+    await changeStatus(
+      "in_progress",
+      t("detail.rejectedComment", { reason: rejectReason.trim() }),
+      {},
+      { context: "rejected", rejectReason: rejectReason.trim() }
+    );
     setRejecting(false);
     setRejectReason("");
   }
@@ -509,10 +517,15 @@ export default function ObservationDetail({ observation, userId, userName, userR
               <button
                 disabled={busy}
                 onClick={() =>
-                  changeStatus("in_progress", `${actionLabel("in_progress")} — claimed by this user`, {
-                    claimed_by: userId,
-                    claimed_at: new Date().toISOString(),
-                  })
+                  changeStatus(
+                    "in_progress",
+                    `${actionLabel("in_progress")} — claimed by this user`,
+                    {
+                      claimed_by: userId,
+                      claimed_at: new Date().toISOString(),
+                    },
+                    { context: "claimed" }
+                  )
                 }
                 className="tap w-full bg-amber-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
               >
