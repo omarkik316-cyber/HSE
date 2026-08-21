@@ -7,12 +7,13 @@
 -- (the 'manager' enum value must already exist).
 
 -- =========================================================
--- 1. Manage users: change ANYONE's role/company, not just your own.
---    (Powers the /admin/users page, now open to managers too.)
+-- 1. Manage users / change roles: ADMIN ONLY. Managers must NOT see the
+--    /admin/users page or be able to change anyone's role/company — this
+--    stays restricted to admin, unlike everything else in this file.
 -- =========================================================
 drop policy if exists "profiles_admin_update_any" on profiles;
 create policy "profiles_admin_update_any" on profiles for update using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('admin', 'manager'))
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 
 -- =========================================================
@@ -75,8 +76,9 @@ create policy "notification_templates_write" on notification_templates for all u
 );
 
 -- =========================================================
--- Sanity check — look at the output: every row's using/check expression
--- should mention 'manager' alongside 'admin'.
+-- Sanity check — look at the output: every row EXCEPT
+-- 'profiles_admin_update_any' should mention 'manager' alongside 'admin'.
+-- 'profiles_admin_update_any' should show admin only.
 -- =========================================================
 select tablename, policyname, cmd, qual, with_check
 from pg_policies

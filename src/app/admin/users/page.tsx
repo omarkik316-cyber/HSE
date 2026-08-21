@@ -67,7 +67,7 @@ export default function AdminUsersPage() {
   }, [t]);
 
   useEffect(() => {
-    if (profile?.role === "admin" || profile?.role === "manager") fetchUsers();
+    if (profile?.role === "admin") fetchUsers();
   }, [profile, fetchUsers]);
 
   async function saveUser(userId: string) {
@@ -107,7 +107,7 @@ export default function AdminUsersPage() {
     );
   }
 
-  if (profile?.role !== "admin" && profile?.role !== "manager") {
+  if (profile?.role !== "admin") {
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
         <div className="text-center space-y-3 max-w-sm px-4">
