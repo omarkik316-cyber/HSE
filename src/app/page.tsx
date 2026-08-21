@@ -134,6 +134,16 @@ export default function DashboardPage() {
     const userId = session.user.id;
 
     (async () => {
+      // Same reasoning as fetchObservations below: when we already know
+      // we're offline, skip straight to the cached profile instead of
+      // letting the browser spend several seconds trying (and failing)
+      // the network request first.
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await getCachedProfile(userId);
+        if (cached) setProfile(cached);
+        setProfileLoading(false);
+        return;
+      }
       try {
         const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
         if (error) throw error;
