@@ -7,6 +7,7 @@ import {
   fetchNotificationsForUser,
   markAllNotificationsRead,
   markNotificationRead,
+  clearAllNotifications,
   sendAdminBroadcast,
   fetchTemplates,
   createTemplate,
@@ -37,13 +38,6 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
   const [view, setView] = useState<View>("list");
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  // Ids currently mid fade-out after a tap. Kept separate from the real
-  // `notifications` state so we can show a brief "acknowledged" animation
-  // instead of the item just vanishing instantly — broadcast notifications
-  // (meeting/site_walk/general) have no observation to navigate to, so
-  // without this the only visible effect of tapping them was the row
-  // disappearing, which read as an accidental delete.
-  const [removingIds, setRemovingIds] = useState<Set<string>>(new Set());
 
   // Compose state
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
@@ -95,37 +89,30 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
   }
 
   async function handleTapNotification(n: NotificationRecord) {
-    if (removingIds.has(n.id)) return; // already mid-dismiss, ignore double-tap
-
-    markNotificationRead(n.id, profile.id);
-
+    // Opening a notification just marks it read (highlights it green) — it
+    // stays in the list until the user clears it explicitly.
+    if (!n.read) {
+      setNotifications((cur) => cur.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      markNotificationRead(n.id, profile.id);
+    }
     if (n.observation_id && onOpenObservation) {
-      // There's somewhere to navigate to, so that navigation itself is the
-      // feedback — remove immediately and close the sheet like before.
-      setNotifications((cur) => cur.filter((x) => x.id !== n.id));
       onOpenObservation(n.observation_id);
       setOpen(false);
-      return;
     }
-
-    // No observation to open (meeting / site walk / general broadcasts).
-    // Play a short "acknowledged" fade instead of yanking the row out
-    // instantly, so tapping clearly reads as "marked read", not "deleted".
-    setRemovingIds((cur) => new Set(cur).add(n.id));
-    setTimeout(() => {
-      setNotifications((cur) => cur.filter((x) => x.id !== n.id));
-      setRemovingIds((cur) => {
-        const next = new Set(cur);
-        next.delete(n.id);
-        return next;
-      });
-    }, 320);
   }
 
   async function handleMarkAllRead() {
-    const unreadIds = notifications.map((n) => n.id);
-    setNotifications([]);
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+    if (unreadIds.length === 0) return;
+    setNotifications((cur) => cur.map((n) => (unreadIds.includes(n.id) ? { ...n, read: true } : n)));
     await markAllNotificationsRead(unreadIds, profile.id);
+  }
+
+  async function handleClearAll() {
+    const ids = notifications.map((n) => n.id);
+    if (ids.length === 0) return;
+    setNotifications([]);
+    await clearAllNotifications(ids, profile.id);
   }
 
   function startCompose(fromTemplate?: NotificationTemplate) {
@@ -240,9 +227,14 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                   </div>
                 </div>
 
-                {unreadCount > 0 && (
-                  <div className="px-5 py-1.5">
-                    <button onClick={handleMarkAllRead} className="tap text-xs text-slate-500 dark:text-slate-400 underline">
+                {notifications.length > 0 && (
+                  <div className="px-5 py-1.5 flex items-center gap-4">
+                    {unreadCount > 0 && (
+                      <button onClick={handleMarkAllRead} className="tap text-xs text-blue-600 dark:text-blue-400 underline">
+                        {t("notif.markAllRead")}
+                      </button>
+                    )}
+                    <button onClick={handleClearAll} className="tap text-xs text-slate-500 dark:text-slate-400 underline">
                       {t("notif.clearAll")}
                     </button>
                   </div>
@@ -255,48 +247,42 @@ export default function NotificationBell({ profile, onOpenObservation }: Notific
                   {!loading && notifications.length === 0 && (
                     <p className="text-center text-sm text-slate-400 py-8">{t("notif.none")}</p>
                   )}
-                  {notifications.map((n) => {
-                    const isRemoving = removingIds.has(n.id);
-                    return (
-                      <button
-                        key={n.id}
-                        onClick={() => handleTapNotification(n)}
-                        disabled={isRemoving}
-                        className={`tap w-full text-left flex items-start gap-2.5 px-3.5 py-3 rounded-xl mb-1 transition-all duration-300 ease-out ${
-                          isRemoving
-                            ? "opacity-0 scale-[0.98] bg-emerald-50 dark:bg-emerald-900/20"
-                            : n.read
-                            ? "bg-transparent"
-                            : "bg-blue-50 dark:bg-blue-900/20"
-                        }`}
-                      >
-                        <span className="text-lg shrink-0 leading-none mt-0.5">
-                          {isRemoving ? "✅" : TYPE_ICON[n.type]}
-                        </span>
-                        <span className="flex-1 min-w-0">
-                          <span className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
-                              {n.title}
-                            </span>
-                            <span className="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0">
-                              {formatDistanceToNow(new Date(n.created_at), { locale: dateLocale, addSuffix: true })}
-                            </span>
+                  {notifications.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => handleTapNotification(n)}
+                      className={`tap w-full text-left flex items-start gap-2.5 px-3.5 py-3 rounded-xl mb-1 ${
+                        n.read
+                          ? "bg-green-50 dark:bg-green-900/20"
+                          : "bg-blue-50 dark:bg-blue-900/20"
+                      }`}
+                    >
+                      <span className="text-lg shrink-0 leading-none mt-0.5">{TYPE_ICON[n.type]}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                            {n.title}
                           </span>
-                          <span className="block text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                            {n.message}
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap shrink-0">
+                            {formatDistanceToNow(new Date(n.created_at), { locale: dateLocale, addSuffix: true })}
                           </span>
-                          {n.profiles?.full_name && n.type === "admin_broadcast" && (
-                            <span className="block text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                              — {n.profiles.full_name}
-                            </span>
-                          )}
                         </span>
-                        {!n.read && !isRemoving && (
-                          <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1.5" />
+                        <span className="block text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                          {n.message}
+                        </span>
+                        {n.profiles?.full_name && n.type === "admin_broadcast" && (
+                          <span className="block text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                            — {n.profiles.full_name}
+                          </span>
                         )}
-                      </button>
-                    );
-                  })}
+                      </span>
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${
+                          n.read ? "bg-green-600" : "bg-blue-600"
+                        }`}
+                      />
+                    </button>
+                  ))}
                 </div>
                 <div className="pb-safe" />
               </>

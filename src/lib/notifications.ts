@@ -41,9 +41,16 @@ async function triggerPush(
 
 /**
  * Loads the most recent notifications and stamps each one with whether the
- * given user has already read it. Two queries (not a join) because
- * `notification_reads` only has a row once someone reads something, and we
- * need "unread" to be the default for everyone else.
+ * given user has already read it. Three queries (not joins) because
+ * `notification_reads`/`notification_clears` only have a row once someone
+ * reads/clears something, and we need "unread"/"not cleared" to be the
+ * default for everyone else.
+ *
+ * Read and cleared are deliberately separate: reading just highlights the
+ * item (green, see NotificationBell) and keeps it in the list; clearing
+ * (the "Clear all" button) is what actually removes it from this user's
+ * feed. The underlying `notifications` row is never touched — it's a
+ * shared broadcast other users still need to see.
  */
 export async function fetchNotificationsForUser(userId: string): Promise<NotificationRecord[]> {
   const { data: notifications, error } = await supabase
@@ -57,20 +64,17 @@ export async function fetchNotificationsForUser(userId: string): Promise<Notific
     return [];
   }
 
-  const { data: reads } = await supabase
-    .from("notification_reads")
-    .select("notification_id")
-    .eq("user_id", userId);
+  const [{ data: reads }, { data: clears }] = await Promise.all([
+    supabase.from("notification_reads").select("notification_id").eq("user_id", userId),
+    supabase.from("notification_clears").select("notification_id").eq("user_id", userId),
+  ]);
 
-  // A read marker means "this user is done with it" — treat it as deleted
-  // from their feed rather than just visually dimmed. The underlying row
-  // stays in `notifications` (it's a shared broadcast other users still
-  // need to see) but this user never sees it again once opened.
   const readIds = new Set((reads ?? []).map((r) => r.notification_id));
+  const clearedIds = new Set((clears ?? []).map((c) => c.notification_id));
 
   return (notifications ?? [])
-    .filter((n) => !readIds.has(n.id))
-    .map((n) => ({ ...n, read: false }));
+    .filter((n) => !clearedIds.has(n.id))
+    .map((n) => ({ ...n, read: readIds.has(n.id) }));
 }
 
 export async function markNotificationRead(notificationId: string, userId: string) {
@@ -89,6 +93,19 @@ export async function markAllNotificationsRead(notificationIds: string[], userId
     .from("notification_reads")
     .upsert(rows, { onConflict: "notification_id,user_id" });
   if (error) console.error("Failed to mark all notifications read:", error.message);
+}
+
+/**
+ * "Clear all" — hides the given notifications from this user's feed for
+ * good (separate from read state; see fetchNotificationsForUser above).
+ */
+export async function clearAllNotifications(notificationIds: string[], userId: string) {
+  if (notificationIds.length === 0) return;
+  const rows = notificationIds.map((id) => ({ notification_id: id, user_id: userId }));
+  const { error } = await supabase
+    .from("notification_clears")
+    .upsert(rows, { onConflict: "notification_id,user_id" });
+  if (error) console.error("Failed to clear notifications:", error.message);
 }
 
 export async function notifyObservationCreated(params: {
