@@ -9,6 +9,7 @@ import { getZoneColor } from "@/types";
 import type { Session } from "@supabase/supabase-js";
 import BottomNav from "@/components/BottomNav";
 import { useT, roleLabel, priorityLabel } from "@/lib/i18n";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import {
   ResponsiveContainer,
   BarChart,
@@ -124,6 +125,7 @@ export default function StatsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [observations, setObservations] = useState<Observation[]>([]);
   const [loading, setLoading] = useState(true);
+  const isOnline = useOnlineStatus();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -163,6 +165,19 @@ export default function StatsPage() {
   useEffect(() => {
     if (!session) return;
     setLoading(true);
+
+    // Same reasoning as the dashboard's fetchObservations in
+    // src/app/page.tsx: skip the network attempt entirely when we already
+    // know we're offline, otherwise the browser still spends several
+    // seconds trying (and failing) before the catch block below could
+    // fall back to the cache anyway.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const cached = getCachedObservations();
+      if (cached.length > 0) setObservations(cached);
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         const { data, error } = await supabase
@@ -194,7 +209,7 @@ export default function StatsPage() {
         setLoading(false);
       }
     })();
-  }, [session]);
+  }, [session, isOnline]);
 
   const { thisWeek, lastWeek } = useMemo(() => getWeekWindows(), []);
   const thisWeekStats = useMemo(() => computeStats(observations, thisWeek), [observations, thisWeek]);
@@ -330,7 +345,10 @@ export default function StatsPage() {
     // fallback in case that navigation is ever slow to kick in.
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <a href="/login" className="text-blue-600 dark:text-blue-400 underline text-sm font-medium">
+        <a
+          href="/login"
+          className="tap bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 rounded-xl shadow-sm"
+        >
           {t("login.signIn")}
         </a>
       </div>

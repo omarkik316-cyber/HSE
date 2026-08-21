@@ -164,7 +164,10 @@ export default function AdminUsersPage() {
     // fallback in case that navigation is ever slow to kick in.
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <a href="/login" className="text-blue-600 dark:text-blue-400 underline text-sm font-medium">
+        <a
+          href="/login"
+          className="tap bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 rounded-xl shadow-sm"
+        >
           {t("login.signIn")}
         </a>
       </div>

@@ -18,6 +18,7 @@ import { onPushClick } from "@/lib/push/onesignal";
 import { startAutoSync, subscribeQueue, getPendingObservations } from "@/lib/offlineQueue";
 import { cacheProfile, getCachedProfile, cacheObservations, getCachedObservations } from "@/lib/localCache";
 import { loadZones, detectZone, getZoneOptions, type ZoneOption } from "@/lib/zoneDetect";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { useT } from "@/lib/i18n";
 import type { Observation, Profile } from "@/types";
 import type { Session } from "@supabase/supabase-js";
@@ -49,6 +50,7 @@ type PendingPin = { lng: number; lat: number; zoneName: string | null } | null;
 export default function DashboardPage() {
   const { basemap, uiMode } = useSettings();
   const { t } = useT();
+  const isOnline = useOnlineStatus();
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
   // false until the very first supabase.auth.getSession() resolves — avoids
@@ -162,6 +164,17 @@ export default function DashboardPage() {
   }, [profile, router]);
 
   const fetchObservations = useCallback(async () => {
+    // Skip the network round-trip entirely when we already know we're
+    // offline — otherwise the browser still tries the request and takes
+    // several seconds (sometimes 5-10s, depending on the device/network)
+    // to give up and reject before the catch block below could fall back
+    // to the cache anyway. Checked live here (not via React state) so
+    // there's no risk of using a stale value from just after mount.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const cached = getCachedObservations();
+      if (cached.length > 0) setObservations(cached);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from("observations")
@@ -190,8 +203,12 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (session) fetchObservations();
-  }, [session, fetchObservations]);
+    // Also re-fires the instant connectivity returns (isOnline flips back
+    // to true), so the view refreshes with live data right away instead
+    // of waiting on the offline queue's own retry sweep — which only
+    // notifies anyone if there was actually something queued to resend.
+    if (session && isOnline) fetchObservations();
+  }, [session, isOnline, fetchObservations]);
 
   // Auto-retry anything sitting in the offline queue (weak-connection
   // submits) whenever we regain connectivity, plus a periodic sweep. When
@@ -371,7 +388,10 @@ export default function DashboardPage() {
     // fallback in case that navigation is ever slow to kick in.
     return (
       <div className="h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950">
-        <a href="/login" className="text-blue-600 dark:text-blue-400 underline text-sm font-medium">
+        <a
+          href="/login"
+          className="tap bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 rounded-xl shadow-sm"
+        >
           {t("login.signIn")}
         </a>
       </div>
